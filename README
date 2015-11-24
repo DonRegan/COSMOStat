@@ -1,0 +1,15 @@
+Content of the repository:
+
+* omp_cosmoStat.cpp, omp_cosmoStat.h 
+  - implementation of various estimators (power spectrum, bispectrum, integrated bispectrum, line correlation function) to measure statistics from N-body data
+* util.cpp, util.h 
+  - helper class, which handles all the gridding in real and Fourier space
+* load_snapshot.cpp, proto.h 
+  - routines to read in particle data in the GADGET file format
+* zbox2.cpp 
+  - main file; contains a full implementation, which reads in and processes data from the ZBOX2 simulations (stored on Apollo), then measures a specified statistic
+
+* makefile 
+  - compiles all necessary code and creates the executable 'zbox2'
+* job.sh
+  - submission script
