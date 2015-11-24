@@ -118,7 +118,6 @@ void COSMOStat::load (string fname)
 
 void COSMOStat::cic (particle_data_pos *P, int NumPart)
 {
-  // cout << "Assign particles to mesh with size N=" << N << " ...";
   double spacing = L/N;
   for (unsigned int p=0; p<NumPart; p++)
     {
@@ -146,7 +145,6 @@ void COSMOStat::cic (particle_data_pos *P, int NumPart)
       rho[util.VecId(i,jpp,kpp)] += tx*dy*dz;
       rho[util.VecId(ipp,jpp,kpp)] += dx*dy*dz;
     }
-  // cout << "done!" << endl;
 }
 
 
@@ -253,23 +251,11 @@ void COSMOStat::set_RhoSubCube (double *parentRho, int parentN, int subId)
     }
   for (int ii=0; ii<NDIM; ii++)
     {
-      /************ JUST FOR TESTING!!! ***********/
-      /* int xC = util.CoordId(ii,0);
-      int yC = util.CoordId(ii,1);
-      int zC = util.CoordId(ii,2);                */
-      /********************************************/
       for (int d=0; d<DIM; d++)
 	{
 	  x[d] = util.CoordId(ii,d)+subx[d];
 	}
-      // if (xC == 0 || xC+1 == N || yC == 0 || yC+1 == N || zC == 0 || zC+1 == N)
-      // 	{
-      // 	  rho[ii] = 0.;
-      // 	}
-      // else
-      // 	{
       rho[ii] = parentRho[parentGrid.VecId(x)];
-      //	}
     }
 
   do_FFT();
@@ -425,7 +411,6 @@ void COSMOStat::filter (double scale, short filterMode)
   switch (filterMode)
     {
     case 1: // Top hat spherical cutoff
-      //#pragma omp parallel for
       for (int ii=0; ii<FNDIM; ii++)
 	{
 	  double k2 = 0.;
@@ -1097,7 +1082,7 @@ void COSMOStat::compute_IntegratedBiSpec (string fname, double kmin, double kmax
   for (int i=0; i<pow(nCut,DIM); i++)
     {
       subBox.set_RhoSubCube(rho, N, i);
-      double rhoAvg = 1.0; //subBox.get_RhoAvg();
+      double rhoAvg = subBox.get_RhoAvg();
 
       for (int j=0; j<iB.size(); j++)
 	{
