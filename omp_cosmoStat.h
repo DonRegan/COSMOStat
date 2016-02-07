@@ -9,15 +9,16 @@
 
 
 class COSMOStat{
-  
+
  private:
-  
+
   int DIM;                        //! dimension of the density field
-  int N, NDIM, FNDIM;             //! number of grid cells per side, number of total 
+  int N, NDIM, FNDIM;             //! number of grid cells per side, number of total
                                   //!  grid cells in real and Fourier space
   double L;                       //! physical sidelength of the box
+  double kF;                      //! fundamental mode of the Fourier grid
 
-  UTIL util;                      //! utility class that handels the gridding in real 
+  UTIL util;                      //! utility class that handels the gridding in real
                                   //!  and Fourier space
 
   double *rho;                    //! array that stores the density field
@@ -26,30 +27,29 @@ class COSMOStat{
 
   fftw_plan p_rho, ip_rho;        //! forward and backward plans for the FFTW library
 
-  std::vector<int> *K;            //! DIM-dimensional vector that stores the k-modes in 
+  std::vector<int> *K;            //! DIM-dimensional vector that stores the k-modes in
                                   //!  fundamental units, i.e. kf = 2Pi/L
-  std::vector<double> k2;         //! vector that stores the squared length of those
-                                  //!  modes
-  std::vector<double> nTriangle;  //! vector used to estimate the number of triangles in
+  std::vector<double> AbsK;       //! vector that stores the length of those modes
+  std::vector<int> nTriangle_;    //! vector used to estimate the number of triangles in
                                   //!  the bispectrum computation
 
   void shift (fftw_complex*, double*);
   void shift (double*, double*, double*);
   void whiten (double);
   void filter (double, short);
-  void shell_c2r (double*, double, double, std::vector<double>);
-  void est_nTriangle (double, double, double, double, double);
+  void shell_c2r (double*, double, double);
+  std::vector<int> get_nTriangle (double, double, double, double, double);
 
 
  public:
-  
+
   COSMOStat ();
   COSMOStat (int, int, double);
   ~COSMOStat ();
 
   /**
    * Function: Load
-   * Loads two- or three-dimensional field into member variable rho and computes its 
+   * Loads two- or three-dimensional field into member variable rho and computes its
    *  Fourier transform. The data must be in matrix format (2d) or single column format
    *  (3d).
    * Parameters:
@@ -60,7 +60,7 @@ class COSMOStat{
   /**
    * Function: Cic
    * Takes the (3d) positions of a collection of particles and smoothes them onto a grid
-   *  using a cloud-in-cell algorithm. The resulting field is stored in the member 
+   *  using a cloud-in-cell algorithm. The resulting field is stored in the member
    *  variable rho.
    * Parameters:
    *  P - pointer to an array of particle positions (data format defined in proto.h)
@@ -95,7 +95,7 @@ class COSMOStat{
    *  val - position of the slice in the perpendicular dimension
    */
   void save_slice (std::string, int, int);
-  
+
   /**
    * Function: Do_FFT
    * Executes the Fourier transform of the member variable rho and storing it in frho.
@@ -119,8 +119,8 @@ class COSMOStat{
 
   /**
    * Function: Set_RhoSubCube
-   * Takes a cubic subsection of a bigger field and stores it in the member variable 
-   *  rho. It computes the Fourier transform and deconvolves a cloud-in-cell window 
+   * Takes a cubic subsection of a bigger field and stores it in the member variable
+   *  rho. It computes the Fourier transform and deconvolves a cloud-in-cell window
    *  function.
    * Parameters:
    *  parentRho - pointer to the array containing the bigger field
@@ -179,7 +179,7 @@ class COSMOStat{
 
   /**
    * Function: Compute_LineCorr_2
-   * Computes and save the line correlation function within a given range of scales. 
+   * Computes and save the line correlation function within a given range of scales.
    *  This is a different implementation and should not be used for now.
    * Parameters:
    */
@@ -187,7 +187,7 @@ class COSMOStat{
 
   /**
    * Function: Compute_PowerSpec
-   * Computes and saves the power spectrum within a given range of scales. The window 
+   * Computes and saves the power spectrum within a given range of scales. The window
    *  function of the cloud-in-cell algorithm is deconvolved beforehand.
    * Parameters:
    *  fname - filename the power spectrum will be saved to
@@ -199,7 +199,7 @@ class COSMOStat{
 
   /**
    * Function: Compute_PowerSpec2
-   * Computes and saves the power spectrum within a given range of scales. This is a 
+   * Computes and saves the power spectrum within a given range of scales. This is a
    *  different implementation and should not be used for now.
    * Parameters:
    *  fname - filename the power spectrum will be saved to
@@ -212,7 +212,7 @@ class COSMOStat{
   /**
    * Function: Compute_PositionDependentPowerSpec
    * Computes and saves the power spectrum within a given range of scales for a subcube
-   *  of the density field. 
+   *  of the density field.
    * Parameters:
    *  fname - filename the power spectrum will be saved to
    *  kmin - smallest scale (in physical units)
