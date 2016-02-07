@@ -27,7 +27,7 @@ class COSMOStat{
 
   fftw_plan p_rho_, ip_rho_;      //! forward and backward plans for the FFTW library
 
-  std::vector<int> *idk_;         //! DIM-dimensional vector that stores the k-modes in
+  std::vector<int> *idk_;         //! dim-dimensional vector that stores the k-modes in
                                   //!  fundamental units, i.e. kf = 2Pi/L
   std::vector<double> absk_;      //! vector that stores the length of those modes
   std::vector<int> nTriangle_;    //! vector used to estimate the number of triangles in
@@ -38,6 +38,20 @@ class COSMOStat{
   void whiten (double);
   void filter (double, short);
   void shell_c2r (double*, double, double);
+
+  /**
+   * Function: Get_nTriangle
+   * Computes the number of triangle configurations for a given shape k1*(1,k2_rel,k3_rel)
+   *  and a range of scales for k1.
+   * Parameters:
+   *  kmin - minimal value for k1 (in physical units)
+   *  kmax - maximal value for k1
+   *  dk - linear scale increment and width of the k-bins
+   *  k2_rel - ratio of k2/k1
+   *  k3_rel - ratio of k3/k1
+   * Returns:
+   *  int-vector containing the number of triangles for the full range of scales.
+   */
   std::vector<int> get_nTriangle (double, double, double, double, double);
 
 
