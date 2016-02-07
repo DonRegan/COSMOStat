@@ -10,29 +10,29 @@ using namespace std;
 
 UTIL::UTIL () {}
 
-UTIL::UTIL (int numDimension, int numGrid)
+UTIL::UTIL (int num_dimension, int num_grid)
 {
-  DIM = numDimension;
-  N = numGrid;
-  N2 = N*N;
-  NDIM = pow(N,DIM);
-  FN = N/2+1;
-  FN2 = N*FN;
-  FNDIM = pow(N,DIM-1)*FN;
+  dim_ = num_dimension;
+  n_ = num_grid;
+  n2_ = n_*n_;
+  ndim_ = pow(n_,dim_);
+  fn_ = n_/2+1;
+  fn2_ = n_*fn_;
+  fndim_ = pow(n_,dim_-1)*fn_;
 }
 
 UTIL::~UTIL () {}
 
-void UTIL::set_grid (int numDimension, int numGrid)
+void UTIL::set_grid (int num_dimension, int num_grid)
 {
-  DIM = numDimension;
-  N = numGrid;
-  N2 = N*N;
-  NDIM = pow(N,DIM);
-  FN = N/2+1;
-  FN2 = N*FN;
-  FNDIM = pow(N,DIM-1)*FN;
-} 
+  dim_ = num_dimension;
+  n_ = num_grid;
+  n2_ = n_*n_;
+  ndim_ = pow(n_,dim_);
+  fn_ = n_/2+1;
+  fn2_ = n_*fn_;
+  fndim_ = pow(n_,dim_-1)*fn_;
+}
 
 int UTIL::CoordId (int index, int d)
 {
@@ -74,31 +74,31 @@ int UTIL::fCoordId (int index, int d)
 
 int UTIL::VecId (int x, int y)
 {
-  return N*y+x;
+  return n_*y+x;
 }
 
 int UTIL::VecId (int x, int y, int z)
 {
-  return N2*z+N*y+x;
+  return n2_*z+n_*y+x;
 }
 
 int UTIL::VecId (int *x)
 {
-  if (DIM == 2)
+  if (dim_ == 2)
     {
-      return N*x[1]+x[0];
+      return n_*x[1]+x[0];
     }
   else
     {
-      return N2*x[2]+N*x[1]+x[0];
+      return n2_*x[2]+n_*x[1]+x[0];
     }
 }
 
 int UTIL::distPBC (int x)
 {
-  if (x > N/2)
+  if (x > n_/2)
     {
-      return N-x;
+      return n_-x;
     }
   else
     {
@@ -108,67 +108,67 @@ int UTIL::distPBC (int x)
 
 int UTIL::x(int index)
 {
-  if (DIM == 2)
+  if (dim_ == 2)
     {
-      return index % N;
+      return index % n_;
     }
   else
     {
-      return (index % N2) % N;
+      return (index % n2_) % n_;
     }
 }
 
 int UTIL::y(int index)
 {
-  if (DIM == 2)
+  if (dim_ == 2)
     {
-      return floor(index/N);
+      return floor(index/n_);
     }
   else
     {
-      return floor((index % N2)/N);
+      return floor((index % n2_)/n_);
     }
 }
 
 int UTIL::z(int index)
 {
-  return floor(index/N2);
+  return floor(index/n2_);
 }
 
 int UTIL::fx(int index)
 {
-  if (DIM == 2)
+  if (dim_ == 2)
     {
-      return index % FN;
+      return index % fn_;
     }
   else
     {
-      return (index % FN2) % FN;
+      return (index % fn2_) % fn_;
     }
 }
 
 int UTIL::fy(int index)
 {
-  if (DIM == 2)
+  if (dim_ == 2)
     {
-      return floor(index/FN);
+      return floor(index/fn_);
     }
   else
     {
-      return floor((index % FN2)/FN);
+      return floor((index % fn2_)/fn_);
     }
 }
 
 int UTIL::fz(int index)
 {
-  return floor(index/FN2);
+  return floor(index/fn2_);
 }
 
 int UTIL::i_to_m (int id)
 {
-  if (id > N/2)
+  if (id > n_/2)
     {
-      return id-N;
+      return id-n_;
     }
   else
     {
@@ -178,13 +178,13 @@ int UTIL::i_to_m (int id)
 
 int UTIL::m_to_i (int mode)
 {
-  if (mode >= N/2)
+  if (mode >= n_/2)
     {
-      mode -= N/2;
+      mode -= n_/2;
     }
-  else if (mode <= -N/2)
+  else if (mode <= -n_/2)
     {
-      mode += N/2;
+      mode += n_/2;
     }
 
   if (mode >= 0)
@@ -193,17 +193,17 @@ int UTIL::m_to_i (int mode)
     }
   else
     {
-      return mode+N;
+      return mode+n_;
     }
 }
 
 
 void UTIL::fftw_normalize (fftw_complex *ffield)
 {
-  for (int ii=0; ii<FNDIM; ii++)
+  for (int ii=0; ii<fndim_; ii++)
     {
-      ffield[ii][0] /= NDIM;
-      ffield[ii][1] /= NDIM;
+      ffield[ii][0] /= ndim_;
+      ffield[ii][1] /= ndim_;
     }
 }
 

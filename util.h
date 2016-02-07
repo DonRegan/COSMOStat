@@ -6,12 +6,12 @@
 class UTIL{
 
  private:
-  
-  int DIM;
-  int N, N2, NDIM, FN, FN2, FNDIM;
+
+  int dim_;
+  int n_, n2_, ndim_, fn_, fn2_, fndim_;
 
  public:
-  
+
   UTIL ();
   UTIL (int, int);
   ~UTIL ();
@@ -31,7 +31,7 @@ class UTIL{
   int fx (int);
   int fy (int);
   int fz (int);
-  
+
   int i_to_m (int);
   int m_to_i (int);
 
@@ -42,4 +42,3 @@ class UTIL{
 double sinc(double);
 
 #endif
-
