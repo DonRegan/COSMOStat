@@ -455,8 +455,13 @@ void COSMOStat::shell_c2r (double *rho_shell, double scale, double binSize)
         {
                 if (absk_[ii] > scale-binSize/2 && absk_[ii] < scale+binSize/2)
                 {
-                        frho_shell[ii][0] = frho_[ii][0];
-                        frho_shell[ii][1] = frho_[ii][1];
+                        double window = 1.;
+                        for (int d=0; d<dim_; d++)
+                        {
+                                window *= sinc(M_PI*idk_[d][ii]/n_);
+                        }
+                        frho_shell[ii][0] = frho_[ii][0]/pow(window,2);
+                        frho_shell[ii][1] = frho_[ii][1]/pow(window,2);
                 }
                 else
                 {
@@ -1088,7 +1093,7 @@ void COSMOStat::compute_BiSpec (string fname, double kmin, double kmax, double d
 
         if (nTriangle_.size() == 0)
         {
-          COSMOStat TriMesh(dim_,(1+int(3.*int(dk/kf_)*int(kmax/kf_)/10))*10, l_);
+          COSMOStat TriMesh(dim_,(1+floor(3.*int(dk/kf_)*int(kmax/kf_)/10))*10, l_);
           nTriangle_ = TriMesh.get_nTriangle(kmin, kmax, dk, k2_rel, k3_rel);
         }
 
