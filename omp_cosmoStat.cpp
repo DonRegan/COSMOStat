@@ -14,75 +14,76 @@ using namespace std;
 
 /* +++++++++++++++++++++++++++++++++ CONSTRUCTORS +++++++++++++++++++++++++++++++++++*/
 
-COSMOStat::COSMOStat () {
+COSMOStat::COSMOStat ()
+{
 }
 
 
-COSMOStat::COSMOStat (int numDimension, int numGrid, double boxsize)
+COSMOStat::COSMOStat (int num_dimension, int num_grid, double boxsize)
 {
-        if (numDimension != 2 && numDimension != 3)
+        if (num_dimension != 2 && num_dimension != 3)
         {
                 cout << "ERROR. The supported number of dimensions are either 2 or 3." << endl;
                 exit(EXIT_FAILURE);
         }
 
-        DIM = numDimension;
-        N = numGrid;
-        NDIM = pow(numGrid,numDimension);
-        FNDIM = pow(numGrid,numDimension-1)*(int(N/2)+1);
-        L = boxsize;
-        kF = 2*M_PI/L;
+        dim_ = num_dimension;
+        n_ = num_grid;
+        ndim_ = pow(num_grid,num_dimension);
+        fndim_ = pow(num_grid,num_dimension-1)*(int(n_/2)+1);
+        l_ = boxsize;
+        kf_ = 2*M_PI/l_;
 
-        util.set_grid(DIM, N);
+        util_.set_grid(dim_, n_);
 
-        rho = new double[NDIM];
-        frho = new fftw_complex[FNDIM];
-        frho2 = new double[FNDIM];
-        K = new vector<int>[DIM];
+        rho_ = new double[ndim_];
+        frho_ = new fftw_complex[fndim_];
+        frho2_ = new double[fndim_];
+        idk_ = new vector<int>[dim_];
 
-        if (DIM == 2)
+        if (dim_ == 2)
         {
 #pragma omp critical (make_plan)
                 {
-                        p_rho = fftw_plan_dft_r2c_2d(N, N, rho, frho, FFTW_MEASURE);
-                        ip_rho = fftw_plan_dft_c2r_2d(N, N, frho, rho, FFTW_MEASURE);
+                        p_rho_ = fftw_plan_dft_r2c_2d(n_, n_, rho_, frho_, FFTW_MEASURE);
+                        ip_rho_ = fftw_plan_dft_c2r_2d(n_, n_, frho_, rho_, FFTW_MEASURE);
                 }
         }
         else
         {
 #pragma omp critical (make_plan)
                 {
-                        p_rho = fftw_plan_dft_r2c_3d(N, N, N, rho, frho, FFTW_MEASURE);
-                        ip_rho = fftw_plan_dft_c2r_3d(N, N, N, frho, rho, FFTW_MEASURE);
+                        p_rho_ = fftw_plan_dft_r2c_3d(n_, n_, n_, rho_, frho_, FFTW_MEASURE);
+                        ip_rho_ = fftw_plan_dft_c2r_3d(n_, n_, n_, frho_, rho_, FFTW_MEASURE);
                 }
         }
 
-        for (int ii=0; ii<FNDIM; ii++)
+        for (int ii=0; ii<fndim_; ii++)
         {
                 double k2 = 0.;
-                for (int d=0; d<DIM; d++)
+                for (int d=0; d<dim_; d++)
                 {
-                        K[d].push_back(util.i_to_m(util.fCoordId(ii,d)));
-                        k2 += pow(K[d][ii],2);
+                        idk_[d].push_back(util_.i_to_m(util_.fCoordId(ii,d)));
+                        k2 += pow(idk_[d][ii],2);
                 }
-                AbsK.push_back(sqrt(k2)*kF);
+                absk_.push_back(sqrt(k2)*kf_);
         }
 
-        for (int ii=0; ii<NDIM; ii++)
+        for (int ii=0; ii<ndim_; ii++)
         {
-                rho[ii] = 0.;
+                rho_[ii] = 0.;
         }
 }
 
 
 COSMOStat::~COSMOStat ()
 {
-        delete [] rho;
-        delete [] frho;
-        delete [] frho2;
+        delete [] rho_;
+        delete [] frho_;
+        delete [] frho2_;
 
-        fftw_destroy_plan(p_rho);
-        fftw_destroy_plan(ip_rho);
+        fftw_destroy_plan(p_rho_);
+        fftw_destroy_plan(ip_rho_);
 }
 
 
@@ -104,26 +105,26 @@ void COSMOStat::load (string fname)
 
         while (data >> buffer)
         {
-                if (ii == NDIM)
+                if (ii == ndim_)
                 {
                         cout << "ERROR. Wrong file format." << endl;
                         exit(EXIT_FAILURE);
                 }
 
-                rho[ii] = buffer;
+                rho_[ii] = buffer;
                 ii++;
         }
 
         data.close();
 
-        fftw_execute(p_rho);
-        util.fftw_normalize(frho);
+        fftw_execute(p_rho_);
+        util_.fftw_normalize(frho_);
 }
 
 
 void COSMOStat::cic (particle_data_pos *P, int NumPart)
 {
-        double spacing = L/N;
+        double spacing = l_/n_;
         for (unsigned int p=0; p<NumPart; p++)
         {
                 int i = floor(P[p].Pos[0]/spacing);
@@ -137,18 +138,18 @@ void COSMOStat::cic (particle_data_pos *P, int NumPart)
                 double ty = 1-dy;
                 double tz = 1-dz;
 
-                int ipp = (i+1)%N;
-                int jpp = (j+1)%N;
-                int kpp = (k+1)%N;
+                int ipp = (i+1)%n_;
+                int jpp = (j+1)%n_;
+                int kpp = (k+1)%n_;
 
-                rho[util.VecId(i,j,k)] += tx*ty*tz;
-                rho[util.VecId(ipp,j,k)] += dx*ty*tz;
-                rho[util.VecId(i,jpp,k)] += tx*dy*tz;
-                rho[util.VecId(i,j,kpp)] += tx*ty*dz;
-                rho[util.VecId(ipp,jpp,k)] += dx*dy*tz;
-                rho[util.VecId(ipp,j,kpp)] += dx*ty*dz;
-                rho[util.VecId(i,jpp,kpp)] += tx*dy*dz;
-                rho[util.VecId(ipp,jpp,kpp)] += dx*dy*dz;
+                rho_[util_.VecId(i,j,k)] += tx*ty*tz;
+                rho_[util_.VecId(ipp,j,k)] += dx*ty*tz;
+                rho_[util_.VecId(i,jpp,k)] += tx*dy*tz;
+                rho_[util_.VecId(i,j,kpp)] += tx*ty*dz;
+                rho_[util_.VecId(ipp,jpp,k)] += dx*dy*tz;
+                rho_[util_.VecId(ipp,j,kpp)] += dx*ty*dz;
+                rho_[util_.VecId(i,jpp,kpp)] += tx*dy*dz;
+                rho_[util_.VecId(ipp,jpp,kpp)] += dx*dy*dz;
         }
 }
 
@@ -156,14 +157,14 @@ void COSMOStat::cic (particle_data_pos *P, int NumPart)
 void COSMOStat::rho2delta ()
 {
         double rhoAvg = 0.;
-        for (int ii=0; ii<NDIM; ii++)
+        for (int ii=0; ii<ndim_; ii++)
         {
-                rhoAvg += rho[ii];
+                rhoAvg += rho_[ii];
         }
-        rhoAvg /= NDIM;
-        for (int ii=0; ii<NDIM; ii++)
+        rhoAvg /= ndim_;
+        for (int ii=0; ii<ndim_; ii++)
         {
-                rho[ii] = rho[ii]/rhoAvg-1;
+                rho_[ii] = rho_[ii]/rhoAvg-1;
         }
 }
 
@@ -179,22 +180,22 @@ void COSMOStat::save (string fname)
                 exit(EXIT_FAILURE);
         }
 
-        if (DIM == 2)
+        if (dim_ == 2)
         {
-                for (int i=0; i<N; i++)
+                for (int i=0; i<n_; i++)
                 {
-                        for (int j=0; j<N; j++)
+                        for (int j=0; j<n_; j++)
                         {
-                                out << rho[util.VecId(i,j)] << "\t";
+                                out << rho_[util_.VecId(i,j)] << "\t";
                         }
                         out << endl;
                 }
         }
         else
         {
-                for (int ii=0; ii<NDIM; ii++)
+                for (int ii=0; ii<ndim_; ii++)
                 {
-                        out << rho[ii] << endl;
+                        out << rho_[ii] << endl;
                 }
         }
 
@@ -208,27 +209,27 @@ void COSMOStat::save_slice(string fname, int d, int val)
         fstream out;
         out.open(fname.c_str(), ios::out);
 
-        for (int i=0; i<N; i++)
+        for (int i=0; i<n_; i++)
         {
-                for (int j=0; j<N; j++)
+                for (int j=0; j<n_; j++)
                 {
                         switch (d)
                         {
                         case 1:
-                                ii = util.VecId(val, i, j);
+                                ii = util_.VecId(val, i, j);
                                 break;
                         case 2:
-                                ii = util.VecId(i, val, j);
+                                ii = util_.VecId(i, val, j);
                                 break;
                         case 3:
-                                ii = util.VecId(i, j, val);
+                                ii = util_.VecId(i, j, val);
                                 break;
                         default:
                                 cout << "Error. Invalid dimension - "
                                      << "choose either 1 (x), 2 (y) or 3 (z)." << endl;
                                 exit(EXIT_FAILURE);
                         }
-                        out << rho[ii] << "\t";
+                        out << rho_[ii] << "\t";
                 }
                 out << endl;
         }
@@ -239,42 +240,42 @@ void COSMOStat::save_slice(string fname, int d, int val)
 
 void COSMOStat::set_Rho (double val, int id)
 {
-        rho[id] = val;
+        rho_[id] = val;
 }
 
 
 
 void COSMOStat::set_RhoSubCube (double *parentRho, int parentN, int subId)
 {
-        int x[DIM], subx[DIM];
-        double kf = 2*M_PI/L;
-        UTIL parentGrid(DIM, parentN), subGrid(DIM, parentN/N);
+        int x[dim_], subx[dim_];
+        double kf = 2*M_PI/l_;
+        UTIL parentGrid(dim_, parentN), subGrid(dim_, parentN/n_);
 
-        for (int d=0; d<DIM; d++)
+        for (int d=0; d<dim_; d++)
         {
-                subx[d] = subGrid.CoordId(subId,d)*N;
+                subx[d] = subGrid.CoordId(subId,d)*n_;
         }
-        for (int ii=0; ii<NDIM; ii++)
+        for (int ii=0; ii<ndim_; ii++)
         {
-                for (int d=0; d<DIM; d++)
+                for (int d=0; d<dim_; d++)
                 {
-                        x[d] = util.CoordId(ii,d)+subx[d];
+                        x[d] = util_.CoordId(ii,d)+subx[d];
                 }
-                rho[ii] = parentRho[parentGrid.VecId(x)];
+                rho_[ii] = parentRho[parentGrid.VecId(x)];
         }
 
         do_FFT();
 
-        for (int ii=0; ii<FNDIM; ii++)
+        for (int ii=0; ii<fndim_; ii++)
         {
                 double window = 1.;
-                for (int d=0; d<DIM; d++)
+                for (int d=0; d<dim_; d++)
                 {
-                        window *= sinc(M_PI*K[d][ii]/N);
+                        window *= sinc(M_PI*idk_[d][ii]/n_);
                 }
-                double re = frho[ii][0];
-                double im = frho[ii][1];
-                frho2[ii] = (re*re+im*im)/pow(window,4);
+                double re = frho_[ii][0];
+                double im = frho_[ii][1];
+                frho2_[ii] = (re*re+im*im)/pow(window,4);
         }
 }
 
@@ -283,30 +284,30 @@ void COSMOStat::set_RhoSubCube (double *parentRho, int parentN, int subId)
 
 void COSMOStat::shift (fftw_complex *field, double *dx)
 {
-        fftw_complex *ffield = new fftw_complex[NDIM];
+        fftw_complex *ffield = new fftw_complex[ndim_];
         fftw_plan p, ip;
 
-        if (DIM == 2)
+        if (dim_ == 2)
         {
-                ip = fftw_plan_dft_2d(N, N, ffield, field, FFTW_BACKWARD, FFTW_ESTIMATE);
+                ip = fftw_plan_dft_2d(n_, n_, ffield, field, FFTW_BACKWARD, FFTW_ESTIMATE);
         }
         else
         {
-                ip = fftw_plan_dft_3d(N, N, N, ffield, field, FFTW_BACKWARD, FFTW_ESTIMATE);
+                ip = fftw_plan_dft_3d(n_, n_, n_, ffield, field, FFTW_BACKWARD, FFTW_ESTIMATE);
         }
 
-        for (int ii=0; ii<NDIM; ii++)
+        for (int ii=0; ii<ndim_; ii++)
         {
                 double phase = 0.;
-                for (int d=0; d<DIM; d++)
+                for (int d=0; d<dim_; d++)
                 {
-                        phase += K[d][ii]*dx[d];
+                        phase += idk_[d][ii]*dx[d];
                 }
                 phase *= 2*M_PI;
                 double CosPhase = cos(phase);
                 double SinPhase = sin(phase);
-                double re = frho[ii][0]*CosPhase-frho[ii][1]*SinPhase;
-                double im = frho[ii][0]*SinPhase+frho[ii][1]*CosPhase;
+                double re = frho_[ii][0]*CosPhase-frho_[ii][1]*SinPhase;
+                double im = frho_[ii][0]*SinPhase+frho_[ii][1]*CosPhase;
                 ffield[ii][0] = re;
                 ffield[ii][1] = im;
         }
@@ -320,41 +321,41 @@ void COSMOStat::shift (fftw_complex *field, double *dx)
 
 void COSMOStat::shift (double *field_pos, double *field_neg, double *dx)
 {
-        fftw_complex *ffield_pos = new fftw_complex[FNDIM];
-        fftw_complex *ffield_neg = new fftw_complex[FNDIM];
+        fftw_complex *ffield_pos = new fftw_complex[fndim_];
+        fftw_complex *ffield_neg = new fftw_complex[fndim_];
         fftw_plan ip_pos, ip_neg;
 
-        if (DIM == 2)
+        if (dim_ == 2)
         {
 #pragma omp critical (make_plan)
                 {
-                        ip_pos = fftw_plan_dft_c2r_2d(N, N, ffield_pos, field_pos, FFTW_ESTIMATE);
-                        ip_neg = fftw_plan_dft_c2r_2d(N, N, ffield_neg, field_neg, FFTW_ESTIMATE);
+                        ip_pos = fftw_plan_dft_c2r_2d(n_, n_, ffield_pos, field_pos, FFTW_ESTIMATE);
+                        ip_neg = fftw_plan_dft_c2r_2d(n_, n_, ffield_neg, field_neg, FFTW_ESTIMATE);
                 }
         }
         else
         {
 #pragma omp critical (make_plan)
                 {
-                        ip_pos = fftw_plan_dft_c2r_3d(N, N, N, ffield_pos, field_pos, FFTW_ESTIMATE);
-                        ip_neg = fftw_plan_dft_c2r_3d(N, N, N, ffield_neg, field_neg, FFTW_ESTIMATE);
+                        ip_pos = fftw_plan_dft_c2r_3d(n_, n_, n_, ffield_pos, field_pos, FFTW_ESTIMATE);
+                        ip_neg = fftw_plan_dft_c2r_3d(n_, n_, n_, ffield_neg, field_neg, FFTW_ESTIMATE);
                 }
         }
 
-        for (int ii=0; ii<FNDIM; ii++)
+        for (int ii=0; ii<fndim_; ii++)
         {
                 double phase = 0.;
-                for (int d=0; d<DIM; d++)
+                for (int d=0; d<dim_; d++)
                 {
-                        phase += K[d][ii]*dx[d];
+                        phase += idk_[d][ii]*dx[d];
                 }
                 phase *= 2*M_PI;
                 double CosPhase = cos(phase);
                 double SinPhase = sin(phase);
-                double re1 = frho[ii][0]*CosPhase;
-                double re2 = frho[ii][1]*SinPhase;
-                double im1 = frho[ii][0]*SinPhase;
-                double im2 = frho[ii][1]*CosPhase;
+                double re1 = frho_[ii][0]*CosPhase;
+                double re2 = frho_[ii][1]*SinPhase;
+                double im1 = frho_[ii][0]*SinPhase;
+                double im2 = frho_[ii][1]*CosPhase;
                 ffield_pos[ii][0] = re1-re2;
                 ffield_pos[ii][1] = im1+im2;
                 ffield_neg[ii][0] = re1+re2;
@@ -373,28 +374,28 @@ void COSMOStat::shift (double *field_pos, double *field_neg, double *dx)
 
 void COSMOStat::whiten (double threshold)
 {
-        for (int ii=0; ii<FNDIM; ii++)
+        for (int ii=0; ii<fndim_; ii++)
         {
-                double re = frho[ii][0], im = frho[ii][1];
+                double re = frho_[ii][0], im = frho_[ii][1];
                 double mag = sqrt(re*re+im*im), k2 = 0.;
-                for (int d=0; d<DIM; d++)
+                for (int d=0; d<dim_; d++)
                 {
-                        k2 += pow(K[d][ii],2);
+                        k2 += pow(idk_[d][ii],2);
                 }
                 if (ii == 0 || mag < threshold)
                 {
-                        frho[ii][0] = 0.;
-                        frho[ii][1] = 0.;
+                        frho_[ii][0] = 0.;
+                        frho_[ii][1] = 0.;
                 }
                 else
                 {
-                        frho[ii][0] *= exp(-pow(0*2*M_PI/N,2)/2*k2)/mag;
-                        frho[ii][1] *= exp(-pow(0*2*M_PI/N,2)/2*k2)/mag;
+                        frho_[ii][0] *= exp(-pow(0*2*M_PI/n_,2)/2*k2)/mag;
+                        frho_[ii][1] *= exp(-pow(0*2*M_PI/n_,2)/2*k2)/mag;
                 }
         }
-        fftw_execute(ip_rho);
-        fftw_execute(p_rho);
-        util.fftw_normalize(frho);
+        fftw_execute(ip_rho_);
+        fftw_execute(p_rho_);
+        util_.fftw_normalize(frho_);
 }
 
 
@@ -403,18 +404,18 @@ void COSMOStat::filter (double scale, short filterMode)
         switch (filterMode)
         {
         case 1: // Top hat spherical cutoff
-                for (int ii=0; ii<FNDIM; ii++)
+                for (int ii=0; ii<fndim_; ii++)
                 {
                         double k2 = 0.;
-                        for (int d=0; d<DIM; d++)
+                        for (int d=0; d<dim_; d++)
                         {
-                                k2 += pow(K[d][ii],2);
+                                k2 += pow(idk_[d][ii],2);
                         }
-                        double cutoff_scale = pow(scale/L,2)*k2;
+                        double cutoff_scale = pow(scale/l_,2)*k2;
                         if (cutoff_scale > 1.)
                         {
-                                frho[ii][0] = 0.;
-                                frho[ii][1] = 0.;
+                                frho_[ii][0] = 0.;
+                                frho_[ii][1] = 0.;
                         }
                 }
                 break;
@@ -422,22 +423,22 @@ void COSMOStat::filter (double scale, short filterMode)
                 cout << "Error. Cutoff mode not defined." << endl;
                 exit(EXIT_FAILURE);
         }
-        fftw_execute(ip_rho);
-        fftw_execute(p_rho);
-        util.fftw_normalize(frho);
+        fftw_execute(ip_rho_);
+        fftw_execute(p_rho_);
+        util_.fftw_normalize(frho_);
 }
 
 
 void COSMOStat::shell_c2r (double *rho_shell, double scale, double binSize)
 {
-        fftw_complex *frho_shell = new fftw_complex[FNDIM];
+        fftw_complex *frho_shell = new fftw_complex[fndim_];
         fftw_plan ip_rho_shell;
 
-        if (DIM == 2)
+        if (dim_ == 2)
         {
 #pragma omp critical (make_plan)
                 {
-                        ip_rho_shell = fftw_plan_dft_c2r_2d(N, N, frho_shell, rho_shell,
+                        ip_rho_shell = fftw_plan_dft_c2r_2d(n_, n_, frho_shell, rho_shell,
                                                             FFTW_ESTIMATE);
                 }
         }
@@ -445,17 +446,17 @@ void COSMOStat::shell_c2r (double *rho_shell, double scale, double binSize)
         {
 #pragma omp critical (make_plan)
                 {
-                        ip_rho_shell = fftw_plan_dft_c2r_3d(N, N, N, frho_shell, rho_shell,
+                        ip_rho_shell = fftw_plan_dft_c2r_3d(n_, n_, n_, frho_shell, rho_shell,
                                                             FFTW_ESTIMATE);
                 }
         }
 
-        for (int ii=0; ii<FNDIM; ii++)
+        for (int ii=0; ii<fndim_; ii++)
         {
-                if (AbsK[ii] > scale-binSize/2 && AbsK[ii] < scale+binSize/2)
+                if (absk_[ii] > scale-binSize/2 && absk_[ii] < scale+binSize/2)
                 {
-                        frho_shell[ii][0] = frho[ii][0];
-                        frho_shell[ii][1] = frho[ii][1];
+                        frho_shell[ii][0] = frho_[ii][0];
+                        frho_shell[ii][1] = frho_[ii][1];
                 }
                 else
                 {
@@ -475,7 +476,7 @@ vector<int> COSMOStat::get_nTriangle (double kmin, double kmax, double dk,
                                       double k2_rel, double k3_rel)
 {
         double scale = kmin, k[3];
-        
+
         double **shell = new double*[3];
         fftw_complex **fshell = new fftw_complex*[3];
         fftw_plan ip_shell[3];
@@ -484,15 +485,15 @@ vector<int> COSMOStat::get_nTriangle (double kmin, double kmax, double dk,
 
         for (int i=0; i<3; i++)
         {
-                shell[i] = new double[NDIM];
-                fshell[i] = new fftw_complex[FNDIM];
+                shell[i] = new double[ndim_];
+                fshell[i] = new fftw_complex[fndim_];
         }
 
-        if (DIM == 2)
+        if (dim_ == 2)
         {
                 for (int i=0; i<3; i++)
                 {
-                        ip_shell[i] = fftw_plan_dft_c2r_2d(N, N, fshell[i], shell[i],
+                        ip_shell[i] = fftw_plan_dft_c2r_2d(n_, n_, fshell[i], shell[i],
                                                            FFTW_ESTIMATE);
                 }
         }
@@ -500,7 +501,7 @@ vector<int> COSMOStat::get_nTriangle (double kmin, double kmax, double dk,
         {
                 for (int i=0; i<3; i++)
                 {
-                        ip_shell[i] = fftw_plan_dft_c2r_3d(N, N, N, fshell[i], shell[i],
+                        ip_shell[i] = fftw_plan_dft_c2r_3d(n_, n_, n_, fshell[i], shell[i],
                                                            FFTW_ESTIMATE);
                 }
         }
@@ -511,11 +512,11 @@ vector<int> COSMOStat::get_nTriangle (double kmin, double kmax, double dk,
                 k[1] = k2_rel*scale;
                 k[2] = k3_rel*scale;
 
-                for (int ii=0; ii<FNDIM; ii++)
+                for (int ii=0; ii<fndim_; ii++)
                 {
                         for (int i=0; i<3; i++)
                         {
-                                if (AbsK[ii] > k[i]-dk/2 && AbsK[ii] < k[i]+dk/2)
+                                if (absk_[ii] > k[i]-dk/2 && absk_[ii] < k[i]+dk/2)
                                 {
                                         fshell[i][ii][0] = 1.;
                                         fshell[i][ii][1] = 1.;
@@ -534,12 +535,12 @@ vector<int> COSMOStat::get_nTriangle (double kmin, double kmax, double dk,
                 }
 
                 double ntr = 0.;
-                for (int ii=0; ii<NDIM; ii++)
+                for (int ii=0; ii<ndim_; ii++)
                 {
                         ntr += shell[0][ii]*shell[1][ii]*shell[2][ii];
                 }
 
-                nTriangle.push_back(int(ntr/NDIM));
+                nTriangle.push_back(int(ntr/ndim_));
                 scale += dk;
         }
 
@@ -557,11 +558,11 @@ vector<int> COSMOStat::get_nTriangle (double kmin, double kmax, double dk,
 double COSMOStat::get_RhoAvg ()
 {
         double rhoAvg = 0.;
-        for (int ii=0; ii<NDIM; ii++)
+        for (int ii=0; ii<ndim_; ii++)
         {
-                rhoAvg += rho[ii];
+                rhoAvg += rho_[ii];
         }
-        return rhoAvg/NDIM;
+        return rhoAvg/ndim_;
 }
 
 
@@ -569,15 +570,15 @@ double COSMOStat::get_PowerSpec (double k, double dk)
 {
         double power = 0.;
         int nk = 0;
-        for (int ii=0; ii<FNDIM; ii++)
+        for (int ii=0; ii<fndim_; ii++)
         {
-                if (AbsK[ii] > k-dk/2 && AbsK[ii] < k+dk/2)
+                if (absk_[ii] > k-dk/2 && absk_[ii] < k+dk/2)
                 {
-                        power += frho2[ii];
+                        power += frho2_[ii];
                         nk++;
                 }
         }
-        power *= pow(L,DIM)/nk;
+        power *= pow(l_,dim_)/nk;
 
         return power;
 }
@@ -587,12 +588,12 @@ double COSMOStat::get_PowerSpec (double k, double dk)
 
 void COSMOStat::compute_LineCorr (string fname, double rmin, double rmax, double dr, short filterMode)
 {
-        fftw_complex *result = new fftw_complex[NDIM];
-        double *rho_pos = new double[NDIM];
-        double *rho_neg = new double[NDIM];
+        fftw_complex *result = new fftw_complex[ndim_];
+        double *rho_pos = new double[ndim_];
+        double *rho_neg = new double[ndim_];
         fftw_plan p_linecorr;
 
-        double *r = new double[DIM];
+        double *r = new double[dim_];
         double scale = rmin, phi, theta, weight;
         int nAngle, nAngle2;
 
@@ -605,11 +606,11 @@ void COSMOStat::compute_LineCorr (string fname, double rmin, double rmax, double
                 exit(EXIT_FAILURE);
         }
 
-        if (DIM == 2)
+        if (dim_ == 2)
         {
 #pragma omp critical (make_plan)
                 {
-                        p_linecorr = fftw_plan_dft_2d(N, N, result, result,
+                        p_linecorr = fftw_plan_dft_2d(n_, n_, result, result,
                                                       FFTW_FORWARD, FFTW_MEASURE);
                 }
         }
@@ -617,21 +618,21 @@ void COSMOStat::compute_LineCorr (string fname, double rmin, double rmax, double
         {
 #pragma omp critical (make_plan)
                 {
-                        p_linecorr = fftw_plan_dft_3d(N, N, N, result, result,
+                        p_linecorr = fftw_plan_dft_3d(n_, n_, n_, result, result,
                                                       FFTW_FORWARD, FFTW_MEASURE);
                 }
         }
 
         whiten(1e-7);
 
-        cout << "\t Scale [L]" << "\t\t Line Correlation" << endl;
+        cout << "\t Scale [l_]" << "\t\t Line Correlation" << endl;
         cout << "----------------------------------------------------------" << endl;
 
         while (scale < rmax)
         {
-                nAngle = (floor(scale*N/L/10.)+1)*20;
+                nAngle = (floor(scale*n_/l_/10.)+1)*20;
                 nAngle2 = nAngle*nAngle;
-                for (int ii=0; ii<NDIM; ii++)
+                for (int ii=0; ii<ndim_; ii++)
                 {
                         result[ii][0] = 0.;
                         result[ii][1] = 0.;
@@ -639,7 +640,7 @@ void COSMOStat::compute_LineCorr (string fname, double rmin, double rmax, double
 
                 filter(scale, filterMode);
 
-                if (DIM == 2)
+                if (dim_ == 2)
                 {
                         for (int i=0; i<nAngle+1; i++)
                         {
@@ -653,14 +654,14 @@ void COSMOStat::compute_LineCorr (string fname, double rmin, double rmax, double
                                 }
 
                                 phi = M_PI/nAngle*i;
-                                r[0] = scale*cos(phi)/L;
-                                r[1] = scale*sin(phi)/L;
+                                r[0] = scale*cos(phi)/l_;
+                                r[1] = scale*sin(phi)/l_;
 
                                 shift(rho_pos, rho_neg, r);
 
-                                for (int ii=0; ii<NDIM; ii++)
+                                for (int ii=0; ii<ndim_; ii++)
                                 {
-                                        result[ii][0] += weight*rho[ii]*rho_pos[ii]*rho_neg[ii];
+                                        result[ii][0] += weight*rho_[ii]*rho_pos[ii]*rho_neg[ii];
                                 }
                         }
                 }
@@ -692,15 +693,15 @@ void COSMOStat::compute_LineCorr (string fname, double rmin, double rmax, double
 
                                         phi = 2*M_PI/nAngle*i;
                                         theta = M_PI/(2*nAngle)*j;
-                                        r[0] = scale*sin(theta)*cos(phi)/L;
-                                        r[1] = scale*sin(theta)*sin(phi)/L;
-                                        r[2] = scale*cos(theta)/L;
+                                        r[0] = scale*sin(theta)*cos(phi)/l_;
+                                        r[1] = scale*sin(theta)*sin(phi)/l_;
+                                        r[2] = scale*cos(theta)/l_;
 
                                         shift(rho_pos, rho_neg, r);
 
-                                        for (int ii=0; ii<NDIM; ii++)
+                                        for (int ii=0; ii<ndim_; ii++)
                                         {
-                                                result[ii][0] += weight*rho[ii]*rho_pos[ii]
+                                                result[ii][0] += weight*rho_[ii]*rho_pos[ii]
                                                                  *rho_neg[ii];
                                         }
                                 }
@@ -708,7 +709,7 @@ void COSMOStat::compute_LineCorr (string fname, double rmin, double rmax, double
                 }
 
                 fftw_execute(p_linecorr);
-                double l = pow(scale/L,3./2*DIM)*result[0][0]/NDIM;
+                double l = pow(scale/l_,3./2*dim_)*result[0][0]/ndim_;
 
                 out << scale << "\t" << l << endl;
                 cout << "\t" << fixed << scale << "\t\t" << fixed << l << endl;
@@ -743,7 +744,7 @@ void COSMOStat::compute_LineCorr (string fname, double rmin, double rmax, double
 
 void COSMOStat::compute_LineCorr_2 (string fname, double rmin, double rmax, double dr, short filterMode)
 {
-        double scale = rmin, rf = L/N;
+        double scale = rmin, rf = l_/n_;
         int Nr, binSize = 2;
 
         fstream out;
@@ -756,26 +757,26 @@ void COSMOStat::compute_LineCorr_2 (string fname, double rmin, double rmax, doub
         }
 
         vector<double> absR;
-        vector<int> *R = new vector<int>[DIM];
-        for (int ii=0; ii<NDIM; ii++)
+        vector<int> *R = new vector<int>[dim_];
+        for (int ii=0; ii<ndim_; ii++)
         {
                 double r2 = 0.;
-                for (int d=0; d<DIM; d++)
+                for (int d=0; d<dim_; d++)
                 {
-                        R[d].push_back(util.CoordId(ii,d));
-                        r2 += pow(util.CoordId(ii,d),2);
+                        R[d].push_back(util_.CoordId(ii,d));
+                        r2 += pow(util_.CoordId(ii,d),2);
                 }
                 absR.push_back(sqrt(r2)*rf);
         }
 
         whiten(1e-7);
 
-        cout << "\t Scale [L]" << "\t\t Line Correlation" << endl;
+        cout << "\t Scale [l_]" << "\t\t Line Correlation" << endl;
         cout << "----------------------------------------------------------" << endl;
 
         while (scale < rmax)
         {
-                int *id_dist = new int[DIM];
+                int *id_dist = new int[dim_];
                 vector<int> id_shell;
                 double id_scale = scale/rf, id_scale_p = scale/rf+0.5*binSize, id_scale_m = sqrt(2)/2*(scale/rf-0.5*binSize);
                 double l = 0.;
@@ -783,12 +784,12 @@ void COSMOStat::compute_LineCorr_2 (string fname, double rmin, double rmax, doub
                 filter(scale, filterMode);
 
                 Nr = 0;
-                for (int ii=0; ii<FNDIM; ii++)
+                for (int ii=0; ii<fndim_; ii++)
                 {
                         int b1 = 1, b2 = 1;
-                        for (int d=0; d<DIM; d++)
+                        for (int d=0; d<dim_; d++)
                         {
-                                id_dist[d] = util.distPBC(R[d][ii]);
+                                id_dist[d] = util_.distPBC(R[d][ii]);
                                 // check if within outer and inner bounding boxes
                                 if (id_dist[d] > id_scale_p)
                                 {
@@ -807,7 +808,7 @@ void COSMOStat::compute_LineCorr_2 (string fname, double rmin, double rmax, doub
                         if (b1 && !b2)
                         {
                                 double dist = 0.;
-                                for (int d=0; d<DIM; d++)
+                                for (int d=0; d<dim_; d++)
                                 {
                                         dist += id_dist[d]*id_dist[d];
                                 }
@@ -819,31 +820,31 @@ void COSMOStat::compute_LineCorr_2 (string fname, double rmin, double rmax, doub
                         }
                 }
 
-                for (int ii=0; ii<NDIM; ii++)
+                for (int ii=0; ii<ndim_; ii++)
                 {
                         double avg = 0.;
                         for (int j=0; j<Nr; j++)
                         {
                                 int ii_pos, ii_neg;
-                                if (DIM == 2)
+                                if (dim_ == 2)
                                 {
-                                        ii_pos = util.VecId((R[0][id_shell[j]]+R[0][ii])%N, (R[1][id_shell[j]]+R[1][ii])%N);
-                                        ii_neg = util.VecId(((-R[0][id_shell[j]]+R[0][ii]+N)%N), ((-R[1][id_shell[j]]+R[1][ii]+N)%N));
+                                        ii_pos = util_.VecId((R[0][id_shell[j]]+R[0][ii])%n_, (R[1][id_shell[j]]+R[1][ii])%n_);
+                                        ii_neg = util_.VecId(((-R[0][id_shell[j]]+R[0][ii]+n_)%n_), ((-R[1][id_shell[j]]+R[1][ii]+n_)%n_));
                                 }
                                 else
                                 {
-                                        ii_pos = util.VecId((R[0][id_shell[j]]+R[0][ii])%N, (R[1][id_shell[j]]+R[1][ii])%N,
-                                                            (R[2][id_shell[j]]+R[2][ii])%N);
-                                        ii_neg = util.VecId((-R[0][id_shell[j]]+R[0][ii]+N)%N, (-R[1][id_shell[j]]+R[1][ii]+N)%N,
-                                                            (-R[2][id_shell[j]]+R[2][ii]+N)%N);
+                                        ii_pos = util_.VecId((R[0][id_shell[j]]+R[0][ii])%n_, (R[1][id_shell[j]]+R[1][ii])%n_,
+                                                            (R[2][id_shell[j]]+R[2][ii])%n_);
+                                        ii_neg = util_.VecId((-R[0][id_shell[j]]+R[0][ii]+n_)%n_, (-R[1][id_shell[j]]+R[1][ii]+n_)%n_,
+                                                            (-R[2][id_shell[j]]+R[2][ii]+n_)%n_);
                                 }
-                                avg += rho[ii_pos]*rho[ii_neg];
+                                avg += rho_[ii_pos]*rho_[ii_neg];
                         }
 
-                        l += rho[ii]*avg;
+                        l += rho_[ii]*avg;
                 }
 
-                l *= pow(scale/L,3./2*DIM)/NDIM/Nr;
+                l *= pow(scale/l_,3./2*dim_)/ndim_/Nr;
 
                 out << scale << "\t" << l << endl;
                 cout << "\t" << fixed << scale << "\t\t" << fixed << l << endl;
@@ -870,34 +871,34 @@ void COSMOStat::compute_PowerSpec (string fname, double kmin, double kmax, doubl
                 exit(EXIT_FAILURE);
         }
 
-        for (int ii=0; ii<FNDIM; ii++)
+        for (int ii=0; ii<fndim_; ii++)
         {
                 double window = 1.;
-                for (int d=0; d<DIM; d++)
+                for (int d=0; d<dim_; d++)
                 {
-                        window *= sinc(M_PI*K[d][ii]/N);
+                        window *= sinc(M_PI*idk_[d][ii]/n_);
                 }
-                double re = frho[ii][0];
-                double im = frho[ii][1];
-                frho2[ii] = (re*re+im*im)/pow(window,4);
+                double re = frho_[ii][0];
+                double im = frho_[ii][1];
+                frho2_[ii] = (re*re+im*im)/pow(window,4);
         }
 
-        cout << "\t Scale [1/L]" << "\t\t Power Spectrum" << endl;
+        cout << "\t Scale [1/l_]" << "\t\t Power Spectrum" << endl;
         cout << "----------------------------------------------------------" << endl;
 
         while (scale < kmax)
         {
                 double power = 0.;
                 int nk = 0;
-                for (int ii=0; ii<FNDIM; ii++)
+                for (int ii=0; ii<fndim_; ii++)
                 {
-                        if (AbsK[ii] > scale-dk/2 && AbsK[ii] < scale+dk/2)
+                        if (absk_[ii] > scale-dk/2 && absk_[ii] < scale+dk/2)
                         {
-                                power += frho2[ii];
+                                power += frho2_[ii];
                                 nk++;
                         }
                 }
-                power *= pow(L,DIM)/nk;
+                power *= pow(l_,dim_)/nk;
 
                 out << scale << "\t" << power << endl;
                 cout << "\t " << fixed << scale << "\t\t " << fixed << power << endl;
@@ -914,7 +915,7 @@ void COSMOStat::compute_PowerSpec (string fname, double kmin, double kmax, doubl
 void COSMOStat::compute_PowerSpec_2 (string fname, double kmin, double kmax, double dk)
 {
         double scale = kmin;
-        double *rho_shell = new double[NDIM];
+        double *rho_shell = new double[ndim_];
 
         fstream out;
         out.open(fname.c_str(), ios::out);
@@ -925,21 +926,21 @@ void COSMOStat::compute_PowerSpec_2 (string fname, double kmin, double kmax, dou
                 exit(EXIT_FAILURE);
         }
 
-        if (kmin < kF)
+        if (kmin < kf_)
         {
-                cout << "WARNING. Value for kmin smaller than fundamental mode. Setting kmin = 2*Pi/L."
+                cout << "WARNING. Value for kmin smaller than fundamental mode. Setting kmin = 2*Pi/l_."
                      << endl;
-                kmin = kF;
+                kmin = kf_;
                 scale = kmin;
         }
-        if (kmax > N*kF/2)
+        if (kmax > n_*kf_/2)
         {
-                cout << "WARNING. Value for kmax bigger than the Nyquist frequency. Setting kmax = N*Pi/L."
+                cout << "WARNING. Value for kmax bigger than the Nyquist frequency. Setting kmax = n_*Pi/l_."
                      << endl;
-                kmax = N*kF/2;
+                kmax = n_*kf_/2;
         }
 
-        cout << "\t k [1/L]" << "\t\t Power Spectrum [L^DIM]" << endl;
+        cout << "\t k [1/l_]" << "\t\t Power Spectrum [l_^dim_]" << endl;
         cout << "----------------------------------------------------------" << endl;
 
         while (scale < kmax)
@@ -947,21 +948,21 @@ void COSMOStat::compute_PowerSpec_2 (string fname, double kmin, double kmax, dou
                 shell_c2r(rho_shell, scale, dk);
 
                 double power = 0.;
-                for (int ii=0; ii<NDIM; ii++)
+                for (int ii=0; ii<ndim_; ii++)
                 {
                         power += pow(rho_shell[ii],2);
                 }
 
-                if (DIM == 2)
+                if (dim_ == 2)
                 {
-                        power *= pow(kF,2)/(2*M_PI*scale*(2*kF));
+                        power *= pow(kf_,2)/(2*M_PI*scale*(2*kf_));
                 }
                 else
                 {
-                        power *= pow(kF,3)/(4*M_PI*pow(scale,2)*2*kF);
+                        power *= pow(kf_,3)/(4*M_PI*pow(scale,2)*2*kf_);
                 }
 
-                power *= pow(L,DIM)/NDIM;
+                power *= pow(l_,dim_)/ndim_;
 
                 out << scale << "\t" << power << endl;
                 cout << "\t " << fixed << scale << "\t\t " << fixed << power << endl;
@@ -976,8 +977,8 @@ void COSMOStat::compute_PowerSpec_2 (string fname, double kmin, double kmax, dou
 void COSMOStat::compute_PositionDependentPowerSpec (string fname, double kmin, double kmax, double dk,
                                                     int nCut, int subId)
 {
-        COSMOStat subBox(DIM, N/nCut, L/nCut);
-        subBox.set_RhoSubCube(rho, N, subId);
+        COSMOStat subBox(dim_, n_/nCut, l_/nCut);
+        subBox.set_RhoSubCube(rho_, n_, subId);
         subBox.do_FFT();
         subBox.compute_PowerSpec(fname, kmin, kmax, dk);
 }
@@ -985,8 +986,8 @@ void COSMOStat::compute_PositionDependentPowerSpec (string fname, double kmin, d
 
 void COSMOStat::compute_IntegratedBiSpec (string fname, double kmin, double kmax, double dk, int nCut)
 {
-        double scale = kmin, kf = 2*M_PI/(L/nCut);
-        COSMOStat subBox(DIM, N/nCut, L/nCut);
+        double scale = kmin, kf = 2*M_PI/(l_/nCut);
+        COSMOStat subBox(dim_, n_/nCut, l_/nCut);
 
         fstream out;
         out.open(fname.c_str(), ios::out);
@@ -999,19 +1000,19 @@ void COSMOStat::compute_IntegratedBiSpec (string fname, double kmin, double kmax
 
         if (kmin < kf)
         {
-                cout << "WARNING. Value for kmin smaller than fundamental mode. Setting kmin = 2*Pi/(L/nCut)."
+                cout << "WARNING. Value for kmin smaller than fundamental mode. Setting kmin = 2*Pi/(l_/nCut)."
                      << endl;
                 kmin = kf;
                 scale = kmin;
         }
-        if (kmax > N*kf/2)
+        if (kmax > n_*kf/2)
         {
-                cout << "WARNING. Value for kmax bigger than the Nyquist frequency. Setting kmax = N*Pi/L."
+                cout << "WARNING. Value for kmax bigger than the Nyquist frequency. Setting kmax = n_*Pi/l_."
                      << endl;
-                kmax = N*kf/2;
+                kmax = n_*kf/2;
         }
 
-        cout << "\t k [1/L]" << "\t\t Integrated Bispectrum [V^2]" << endl;
+        cout << "\t k [1/l_]" << "\t\t Integrated Bispectrum [V^2]" << endl;
         cout << "----------------------------------------------------------" << endl;
 
         vector<double> iB;
@@ -1022,9 +1023,9 @@ void COSMOStat::compute_IntegratedBiSpec (string fname, double kmin, double kmax
         }
         scale = kmin;
 
-        for (int i=0; i<pow(nCut,DIM); i++)
+        for (int i=0; i<pow(nCut,dim_); i++)
         {
-                subBox.set_RhoSubCube(rho, N, i);
+                subBox.set_RhoSubCube(rho_, n_, i);
                 double rhoAvg = subBox.get_RhoAvg();
 
                 for (int j=0; j<iB.size(); j++)
@@ -1038,7 +1039,7 @@ void COSMOStat::compute_IntegratedBiSpec (string fname, double kmin, double kmax
 
         for (int i=0; i<iB.size(); i++)
         {
-                iB[i] /= pow(nCut,DIM);
+                iB[i] /= pow(nCut,dim_);
         }
 
         for (int i=0; i<iB.size(); i++)
@@ -1058,9 +1059,9 @@ void COSMOStat::compute_BiSpec (string fname, double kmin, double kmax, double d
                                 double k2_rel, double k3_rel)
 {
         double scale = kmin;
-        double *rho_shell1 = new double[NDIM];
-        double *rho_shell2 = new double[NDIM];
-        double *rho_shell3 = new double[NDIM];
+        double *rho_shell1 = new double[ndim_];
+        double *rho_shell2 = new double[ndim_];
+        double *rho_shell3 = new double[ndim_];
 
         fstream out;
         out.open(fname.c_str(), ios::out);
@@ -1071,27 +1072,27 @@ void COSMOStat::compute_BiSpec (string fname, double kmin, double kmax, double d
                 exit(EXIT_FAILURE);
         }
 
-        if (kmin < kF)
+        if (kmin < kf_)
         {
-                cout << "WARNING. Value for kmin smaller than fundamental mode. Setting kmin = 2*Pi/L."
+                cout << "WARNING. Value for kmin smaller than fundamental mode. Setting kmin = 2*Pi/l_."
                      << endl;
-                kmin = kF;
+                kmin = kf_;
                 scale = kmin;
         }
-        if (kmax > N*kF/2)
+        if (kmax > n_*kf_/2)
         {
-                cout << "WARNING. Value for kmax bigger than the Nyquist frequency. Setting kmax = N*Pi/L."
+                cout << "WARNING. Value for kmax bigger than the Nyquist frequency. Setting kmax = n_*Pi/l_."
                      << endl;
-                kmax = N*kF/2;
+                kmax = n_*kf_/2;
         }
 
         if (nTriangle_.size() == 0)
         {
-          COSMOStat TriMesh(DIM,(1+int(3.*int(dk/kF)*int(kmax/kF)/10))*10, L);
+          COSMOStat TriMesh(dim_,(1+int(3.*int(dk/kf_)*int(kmax/kf_)/10))*10, l_);
           nTriangle_ = TriMesh.get_nTriangle(kmin, kmax, dk, k2_rel, k3_rel);
         }
 
-        cout << "\t k_1 [1/L]" << "\t\t Bispectrum (k_2 = " << k2_rel << "*k_1, k_3 = "
+        cout << "\t k_1 [1/l_]" << "\t\t Bispectrum (k_2 = " << k2_rel << "*k_1, k_3 = "
              << k3_rel << "*k_1)" << endl;
         cout << "----------------------------------------------------------" << endl;
 
@@ -1103,23 +1104,23 @@ void COSMOStat::compute_BiSpec (string fname, double kmin, double kmax, double d
                 shell_c2r(rho_shell3, k3_rel*scale, dk);
 
                 double B = 0.;
-                for (int ii=0; ii<NDIM; ii++)
+                for (int ii=0; ii<ndim_; ii++)
                 {
                         B += rho_shell1[ii]*rho_shell2[ii]*rho_shell3[ii];
                 }
 
-                if (DIM == 2)
+                if (dim_ == 2)
                 {
-                        // B *= pow(kF,4)/(4*M_PI*k3_rel*scale*pow(dk,3));
+                        // B *= pow(kf_,4)/(4*M_PI*k3_rel*scale*pow(dk,3));
                         B /= nTriangle_[nr];
                 }
                 else
                 {
-                        // B *= pow(kF,6)/(8*M_PI*M_PI*k2_rel*k3_rel*pow(scale*dk,3));
+                        // B *= pow(kf_,6)/(8*M_PI*M_PI*k2_rel*k3_rel*pow(scale*dk,3));
                         B /= nTriangle_[nr];
                 }
 
-                B *= pow(L,2*DIM)/NDIM;
+                B *= pow(l_,2*dim_)/ndim_;
 
                 out << scale << "\t" << B << endl;
                 cout << "\t " << fixed << scale << "\t\t " << fixed << B << endl;
@@ -1152,8 +1153,8 @@ void COSMOStat::compute_BiSpec (string fname, double kmin, double kmax, double d
 // power spectrum estimation via direct sampling. Not working yet!
 // void COSMOStat::get_powerspec_avg (string fname, double kmin, double kmax, double dk)
 // {
-//   double *frho2 = new double[NDIM];
-//   double scale = kmin, kf = 2*M_PI/L;
+//   double *frho2_ = new double[ndim_];
+//   double scale = kmin, kf = 2*M_PI/l_;
 //   vector<double> k2;
 
 //   fstream out;
@@ -1165,35 +1166,35 @@ void COSMOStat::compute_BiSpec (string fname, double kmin, double kmax, double d
 //       exit(EXIT_FAILURE);
 //     }
 
-//   for (int ii=0; ii<NDIM; ii++)
+//   for (int ii=0; ii<ndim_; ii++)
 //     {
-//       double re = frho[ii][0];
-//       double im = frho[ii][1];
-//       frho2[ii] = sqrt(re*re+im*im);
+//       double re = frho_[ii][0];
+//       double im = frho_[ii][1];
+//       frho2_[ii] = sqrt(re*re+im*im);
 //     }
 
-//   for (int ii=0; ii<NDIM; ii++)
+//   for (int ii=0; ii<ndim_; ii++)
 //     {
 //       k2.push_back(0.0);
 //       for (int d=0; d<DIM; d++)
 //  {
-//    k2[ii] += pow(K[d][ii],2);
+//    k2[ii] += pow(idk_[d][ii],2);
 //  }
 //       k2[ii] *= pow(kf,2);
 //     }
 
-//   cout << "\t Scale [1/L]" << "\t\t Power Spectrum" << endl;
+//   cout << "\t Scale [1/l_]" << "\t\t Power Spectrum" << endl;
 //   cout << "----------------------------------------------------------" << endl;
 
 //   while (scale < kmax)
 //     {
 //       double power = 0.;
 //       int nk = 0;
-//       for (int ii=0; ii<NDIM; ii++)
+//       for (int ii=0; ii<ndim_; ii++)
 //  {
 //    if (sqrt(k2[ii]) > scale-kf/2 && sqrt(k2[ii]) < scale+kf/2)
 //      {
-//        power += frho2[ii];
+//        power += frho2_[ii];
 //        nk++;
 //      }
 //  }
@@ -1202,7 +1203,7 @@ void COSMOStat::compute_BiSpec (string fname, double kmin, double kmax, double d
 //       out << scale << "\t" << power << endl;
 //       cout << "\t " << fixed << scale << "\t\t " << fixed << power << endl;
 
-//       scale += 2*M_PI/L;
+//       scale += 2*M_PI/l_;
 //     }
 
 //   cout << "----------------------------------------------------------" << endl;

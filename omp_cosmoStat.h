@@ -12,24 +12,24 @@ class COSMOStat{
 
  private:
 
-  int DIM;                        //! dimension of the density field
-  int N, NDIM, FNDIM;             //! number of grid cells per side, number of total
+  int dim_;                       //! dimension of the density field
+  int n_, ndim_, fndim_;          //! number of grid cells per side, number of total
                                   //!  grid cells in real and Fourier space
-  double L;                       //! physical sidelength of the box
-  double kF;                      //! fundamental mode of the Fourier grid
+  double l_;                      //! physical sidelength of the box
+  double kf_;                     //! fundamental mode of the Fourier grid
 
-  UTIL util;                      //! utility class that handels the gridding in real
+  UTIL util_;                     //! utility class that handels the gridding in real
                                   //!  and Fourier space
 
-  double *rho;                    //! array that stores the density field
-  fftw_complex *frho;             //! Fourier transform of the density field
-  double *frho2;                  //! squared amplitudes of the Fourier coefficients
+  double *rho_;                   //! array that stores the density field
+  fftw_complex *frho_;            //! Fourier transform of the density field
+  double *frho2_;                 //! squared amplitudes of the Fourier coefficients
 
-  fftw_plan p_rho, ip_rho;        //! forward and backward plans for the FFTW library
+  fftw_plan p_rho_, ip_rho_;      //! forward and backward plans for the FFTW library
 
-  std::vector<int> *K;            //! DIM-dimensional vector that stores the k-modes in
+  std::vector<int> *idk_;         //! DIM-dimensional vector that stores the k-modes in
                                   //!  fundamental units, i.e. kf = 2Pi/L
-  std::vector<double> AbsK;       //! vector that stores the length of those modes
+  std::vector<double> absk_;      //! vector that stores the length of those modes
   std::vector<int> nTriangle_;    //! vector used to estimate the number of triangles in
                                   //!  the bispectrum computation
 
@@ -104,8 +104,8 @@ class COSMOStat{
    */
   void do_FFT()
   {
-    fftw_execute(p_rho);
-    util.fftw_normalize(frho);
+    fftw_execute(p_rho_);
+    util_.fftw_normalize(frho_);
   }
 
   /**
@@ -138,7 +138,7 @@ class COSMOStat{
    * Returns:
    *  double value of the array
    */
-  double get_Rho (int ii) { return rho[ii]; }
+  double get_Rho (int ii) { return rho_[ii]; }
 
   /**
    * Function: Get_RhoAvg
