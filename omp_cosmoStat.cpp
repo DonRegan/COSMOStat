@@ -248,7 +248,6 @@ void COSMOStat::set_Rho (double val, int id)
 void COSMOStat::set_RhoSubCube (double *parentRho, int parentN, int subId)
 {
         int x[dim_], subx[dim_];
-        double kf = 2*M_PI/l_;
         UTIL parentGrid(dim_, parentN), subGrid(dim_, parentN/n_);
 
         for (int d=0; d<dim_; d++)
@@ -285,7 +284,7 @@ void COSMOStat::set_RhoSubCube (double *parentRho, int parentN, int subId)
 void COSMOStat::shift (fftw_complex *field, double *dx)
 {
         fftw_complex *ffield = new fftw_complex[ndim_];
-        fftw_plan p, ip;
+        fftw_plan ip;
 
         if (dim_ == 2)
         {
@@ -579,12 +578,7 @@ double COSMOStat::get_PowerSpec (double k, double dk)
         {
                 if (absk_[ii] > k-dk/2 && absk_[ii] < k+dk/2)
                 {
-                        double window = 1.;
-                        for (int d=0; d<dim_; d++)
-                        {
-                                window *= sinc(M_PI*idk_[d][ii]/n_);
-                        }
-                        power += frho2_[ii]/pow(window,4);
+                        power += frho2_[ii];
                         nk++;
                 }
         }
