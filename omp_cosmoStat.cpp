@@ -579,7 +579,12 @@ double COSMOStat::get_PowerSpec (double k, double dk)
         {
                 if (absk_[ii] > k-dk/2 && absk_[ii] < k+dk/2)
                 {
-                        power += frho2_[ii];
+                        double window = 1.;
+                        for (int d=0; d<dim_; d++)
+                        {
+                                window *= sinc(M_PI*idk_[d][ii]/n_);
+                        }
+                        power += frho2_[ii]/pow(window,4);
                         nk++;
                 }
         }
