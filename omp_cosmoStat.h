@@ -71,6 +71,8 @@ class COSMOStat{
    */
   void load (std::string);
 
+  void load_particles (std::string, int, double);
+
   /**
    * Function: Cic
    * Takes the (3d) positions of a collection of particles and smoothes them onto a grid
@@ -81,6 +83,8 @@ class COSMOStat{
    *  NumPart - number of elements contained in that array
    */
   void cic (particle_data_pos*, int);
+
+  struct particle_data_pos* subsample (particle_data_pos*, int, double, long&);
 
   /**
    * Function: Rho2delta

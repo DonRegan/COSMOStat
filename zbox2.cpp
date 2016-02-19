@@ -18,27 +18,23 @@ using namespace std;
 
 int main(int argc, char *argv[])
 {
-  // Location of ZBOX2 data 
+  // Location of ZBOX2 data
   string fin = "/lustre/scratch/astro/res33/ZBOX2/";
 
   // Output filename
   string fout = "./out";
 
-  // Number of realizations  
+  // Number of realizations
   int nF = 1;
 
-  // Number of files per snapshot
-  int files = 10;
-
-
-  // Initialize MPI 
+  // Initialize MPI
   int nproc, rank, nthread, npxt;
   MPI_Init(&argc, &argv);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   MPI_Comm_size(MPI_COMM_WORLD, &nproc);
   nthread = 1; // omp_get_num_threads();
   npxt = nproc*nthread;
-  
+
   // Distribute realisations on various processors
   int k, kstart, kend;
   kstart = (nF/npxt)*(rank*nthread);
@@ -75,48 +71,14 @@ int main(int argc, char *argv[])
       if (calc){
 
 	// ==================================== LOAD PARTICLE DATA =====================================
-	char path[200], input_fname[200], basename[200];
-	int snapshot_number, NumPart;
-
-	if (k < 8)
-	  {
-	    snapshot_number = 16;
-	  }
-	else if (k < 30)
-	  {
-	    snapshot_number = 7;
-	  }
-	else if (k < 40)
-	  {
-	    snapshot_number = 2;
-	  }
-	else
-	  {
-	    snapshot_number = 3;
-	  }
 
 	cout << "Rank " << rank << " processes snapshot " << k+1 << endl;
 
 	// Initialize COSMOStat-class, which stores the data and handles all statistics
 	COSMOStat stat(3, 1024, 1500.0);
 
-	// Get input filenames
-	stringstream fend, snap;
-	fend << "LCDM-750-run" << k+1;
-	snap << "snap" << snapshot_number;
-	sprintf(path, (fin+fend.str()+"/DATA").c_str());
-	sprintf(basename, "LCDM-L1500-N750-Tf_om_m_0.25_om_de_0.75_om_b_0.04_sig8_0.8_h_0.7");
-	sprintf(input_fname, "%s/%s_%03d", path, basename, snapshot_number);
+  stat.load_particles(fin, k, 1);
 
-	// Load particle data into "P" and convert into smooth density field using CIC 
-	for (int i=0; i<files; i++)
-	  {
-	    particle_data_pos *P = load_sub_snapshot(input_fname, i, NumPart);	  
-	    stat.cic(P, NumPart);
-	    delete [] P;
-	  }
-	stat.rho2delta();
-	stat.do_FFT();
 	// =============================================================================================
 
 
@@ -126,7 +88,7 @@ int main(int argc, char *argv[])
 	// stat.compute_LineCorr(fout+fend.str()+".dat", 15., 201., 5., 1);
 
 	// Power Spectrum
-	// stat.compute_PowerSpec(fout+fend.str()+".dat", 2*M_PI/1500., 
+	// stat.compute_PowerSpec(fout+fend.str()+".dat", 2*M_PI/1500.,
 	// 		          256*M_PI/1500.+2*M_PI/1500., 254*M_PI/1500./22);
 
 	// Bispectrum

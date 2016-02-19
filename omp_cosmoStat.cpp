@@ -5,9 +5,10 @@
 #include <complex>
 #include <vector>
 #include <stdlib.h>
-//#include <omp.h>
+#include <omp.h>
 #include "util.h"
 #include "omp_cosmoStat.h"
+#include "ran2.h"
 
 using namespace std;
 
@@ -122,6 +123,62 @@ void COSMOStat::load (string fname)
 }
 
 
+void COSMOStat::load_particles (string loc, int nreal, double subfrac)
+{
+  char path[200], input_fname[200], basename[200];
+	int snapshot_number, NumPart;
+  long seed = -7348716*nreal;
+
+  // Number of files per snapshot
+  int files = 10;
+
+	if (nreal < 8)
+	  {
+	    snapshot_number = 16;
+	  }
+	else if (nreal < 30)
+	  {
+	    snapshot_number = 7;
+	  }
+	else if (nreal < 40)
+	  {
+	    snapshot_number = 2;
+	  }
+	else
+	  {
+	    snapshot_number = 3;
+	  }
+
+  // Get input filenames
+	stringstream fend, snap;
+	fend << "LCDM-750-run" << nreal+1;
+	snap << "snap" << snapshot_number;
+	sprintf(path, (loc+fend.str()+"/DATA").c_str());
+	sprintf(basename, "LCDM-L1500-N750-Tf_om_m_0.25_om_de_0.75_om_b_0.04_sig8_0.8_h_0.7");
+	sprintf(input_fname, "%s/%s_%03d", path, basename, snapshot_number);
+
+	// Load particle data into "P" and convert into smooth density field using CIC
+	for (int i=0; i<files; i++)
+	  {
+	    particle_data_pos *P = load_sub_snapshot(input_fname, i, NumPart);
+      if (subfrac < 1)
+      {
+        particle_data_pos *subP = subsample(P, NumPart, subfrac, seed);
+        cic(subP, int(NumPart*subfrac));
+	      delete [] subP;
+      }
+      else
+      {
+        cic(P, NumPart);
+      }
+      delete [] P;
+	  }
+
+	rho2delta();
+	do_FFT();
+}
+
+
 void COSMOStat::cic (particle_data_pos *P, int NumPart)
 {
         double spacing = l_/n_;
@@ -151,6 +208,23 @@ void COSMOStat::cic (particle_data_pos *P, int NumPart)
                 rho_[util_.VecId(i,jpp,kpp)] += tx*dy*dz;
                 rho_[util_.VecId(ipp,jpp,kpp)] += dx*dy*dz;
         }
+}
+
+
+struct particle_data_pos* COSMOStat::subsample (particle_data_pos *P, int NumPart,
+                                                double fraction, long &seed)
+{
+  int subNumPart = int(fraction*NumPart);
+  struct particle_data_pos *subP = new particle_data_pos[subNumPart];
+
+  for (int i=0; i<subNumPart; i++)
+  {
+    int p = int(ran2(seed)*NumPart);
+    subP[i].Pos[0] = P[p].Pos[0];
+    subP[i].Pos[1] = P[p].Pos[1];
+    subP[i].Pos[2] = P[p].Pos[2];
+  }
+  return subP;
 }
 
 
