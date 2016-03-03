@@ -1277,8 +1277,6 @@ void COSMOStat::compute_BiSpec (string fname, double kmin, double kmax, double d
 
 
 
-
-
 /* ++++++++++++++++++++++++++ MISC ++++++++++++++++++++++++++++++++++++++++++++++*/
 
 // power spectrum estimation via direct sampling. Not working yet!

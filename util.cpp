@@ -255,3 +255,9 @@ double prod3 (fftw_complex a, fftw_complex b, fftw_complex c)
   prod(a, b, buffer);
   return buffer[0]*c[0] - buffer[1]*c[1];
 }
+
+
+bool comparator (const idpair &l, const idpair &r)
+{
+  return l.first < r.first;
+}

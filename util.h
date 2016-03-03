@@ -49,9 +49,6 @@ double prod3 (fftw_complex, fftw_complex, fftw_complex);
 
 
 typedef std::pair<double, int> idpair;
-bool comparator (const idpair &l, const idpair &r)
-{
-  return l.first < r.first;
-}
+bool comparator (const idpair&, const idpair&);
 
 #endif
