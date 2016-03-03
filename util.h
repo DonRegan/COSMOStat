@@ -2,6 +2,7 @@
 #define UTIL_H
 
 #include <fftw3.h>
+#include <vector>
 
 class UTIL{
 
