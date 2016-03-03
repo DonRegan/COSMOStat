@@ -72,6 +72,16 @@ int UTIL::fCoordId (int index, int d)
     }
 }
 
+vector<int> UTIL::fCoordId (int index)
+{
+  vector<int> fcoord;
+  for (int d=0; d<dim_; d++)
+  {
+    fcoord.push_back(fCoordId(index, d));
+  }
+  return fcoord;
+}
+
 int UTIL::VecId (int x, int y)
 {
   return n_*y+x;
@@ -91,6 +101,18 @@ int UTIL::VecId (int *x)
   else
     {
       return n2_*x[2]+n_*x[1]+x[0];
+    }
+}
+
+int UTIL::fVecId (int *x)
+{
+  if (dim_ == 2)
+    {
+      return fn_*x[1]+x[0];
+    }
+  else
+    {
+      return fn2_*x[2]+fn_*x[1]+x[0];
     }
 }
 
@@ -218,4 +240,18 @@ double sinc(double x)
     {
       return sin(x)/x;
     }
+}
+
+
+void prod (fftw_complex a, fftw_complex b, fftw_complex result)
+{
+  result[0] = a[0]*b[0] - a[1]*b[1];
+  result[1] = a[0]*b[1] + a[1]*b[0];
+}
+
+double prod3 (fftw_complex a, fftw_complex b, fftw_complex c)
+{
+  fftw_complex buffer;
+  prod(a, b, buffer);
+  return buffer[0]*c[0] - buffer[1]*c[1];
 }

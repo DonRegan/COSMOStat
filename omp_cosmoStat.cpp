@@ -5,6 +5,7 @@
 #include <complex>
 #include <vector>
 #include <stdlib.h>
+#include <algorithm>
 //#include <omp.h>
 #include "util.h"
 #include "omp_cosmoStat.h"
@@ -560,6 +561,19 @@ vector<int> COSMOStat::get_nTriangle (double kmin, double kmax, double dk,
 }
 
 
+void COSMOStat::id_mod (vector<idpair> idmod)
+{
+  for (int ii=0; ii<fndim_; ii++)
+  {
+    idpair buffer;
+    buffer.first = absk_[ii];
+    buffer.second = ii;
+    idmod.push_back(buffer);
+  }
+  sort(idmod.begin(), idmod.end(), comparator);
+}
+
+
 double COSMOStat::get_RhoAvg ()
 {
         double rhoAvg = 0.;
@@ -850,6 +864,118 @@ void COSMOStat::compute_LineCorr_2 (string fname, double rmin, double rmax, doub
                 }
 
                 l *= pow(scale/l_,3./2*dim_)/ndim_/Nr;
+
+                out << scale << "\t" << l << endl;
+                cout << "\t" << fixed << scale << "\t\t" << fixed << l << endl;
+
+                scale += dr;
+        }
+
+        cout << "----------------------------------------------------------" << endl;
+
+        out.close();
+}
+
+
+void COSMOStat::compute_LineCorr_F (string fname, double rmin, double rmax, double dr)
+{
+        double scale = rmin;
+        vector<idpair> idmod;
+        vector<double> mod;
+
+        fstream out;
+        out.open(fname.c_str(), ios::out);
+
+        if (!out)
+        {
+                cout << "ERROR. Cannot open file." << endl;
+                exit(EXIT_FAILURE);
+        }
+
+        id_mod(idmod);
+        for (int ii=0; ii<fndim_; ii++)
+        {
+                mod.push_back(idmod[ii].first);
+        }
+
+        whiten(1e-7);
+
+        cout << "\t Scale [l_]" << "\t\t Line Correlation" << endl;
+        cout << "----------------------------------------------------------" << endl;
+
+        while (scale < rmax)
+        {
+                int nmax = lower_bound(mod.begin(), mod.end(), 2*M_PI/scale) - mod.begin();
+                double l = 0.;
+
+                for (int ii=0; ii<nmax; ii++)
+                {
+                        for (int jj=0; jj<nmax; jj++)
+                        {
+                                vector<int> Iii = util_.fCoordId(idmod[ii].second);
+                                vector<int> Ijj = util_.fCoordId(idmod[jj].second);
+                                int *Iij = new int[dim_];
+
+                                vector<int> kii, kjj;
+                                double k2 = mod[ii]*mod[ii];
+                                double q2 = mod[jj]*mod[jj];
+
+                                fftw_complex frho_q, frho_kq;
+                                double mu = 0.;
+
+                                for (int d=0; d<dim_; d++)
+                                {
+                                        kii.push_back(util_.i_to_m(Iii[d]));
+                                        kjj.push_back(util_.i_to_m(Ijj[d]));
+                                        mu += kii[d]*kjj[d];
+                                }
+
+                                if (mu < (1.-k2-q2)/2)
+                                {
+                                        double kqminus = sqrt(k2+q2-2*mu);
+                                        for (int d=0; d<dim_; d++)
+                                        {
+                                                Iij[d] = util_.m_to_i(kii[d]+kjj[d]);
+                                        }
+                                        frho_kq[0] =  frho_[util_.fVecId(Iij)][0];
+                                        frho_kq[1] =  -frho_[util_.fVecId(Iij)][1];
+                                        l += sinc(kqminus*scale)*prod3(frho_[idmod[ii].second],
+                                                                       frho_[idmod[jj].second], frho_kq);
+                                }
+
+                                if (mu > -(1.-k2-q2)/2)
+                                {
+                                        double kqplus = sqrt(k2+q2+2*mu);
+                                        int *Iij = new int[dim_];
+                                        if (-kii[dim_-1]+kjj[dim_-1] >= 0)
+                                        {
+                                                for (int d=0; d<dim_; d++)
+                                                {
+                                                        Iij[d] = util_.m_to_i(-kii[d]+kjj[d]);
+                                                }
+                                                frho_q[0] =  frho_[idmod[jj].second][0];
+                                                frho_q[1] =  -frho_[idmod[jj].second][1];
+                                                l += sinc(kqplus*scale)*prod3(frho_[idmod[ii].second],
+                                                                              frho_q, frho_[util_.fVecId(Iij)]);
+                                        }
+                                        else
+                                        {
+                                                for (int d=0; d<dim_; d++)
+                                                {
+                                                        Iij[d] = util_.m_to_i(kii[d]-kjj[d]);
+                                                }
+                                                frho_q[0] =  frho_[idmod[jj].second][0];
+                                                frho_q[1] =  -frho_[idmod[jj].second][1];
+                                                frho_kq[0] =  frho_[util_.fVecId(Iij)][0];
+                                                frho_kq[1] =  -frho_[util_.fVecId(Iij)][1];
+                                                l += sinc(kqplus*scale)*prod3(frho_[idmod[ii].second],
+                                                                              frho_q, frho_kq);
+                                        }
+                                }
+                        }
+                }
+
+                l *= 2*pow(scale/l_,3./2*dim_);
 
                 out << scale << "\t" << l << endl;
                 cout << "\t" << fixed << scale << "\t\t" << fixed << l << endl;

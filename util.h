@@ -20,10 +20,12 @@ class UTIL{
 
   int CoordId (int, int);
   int fCoordId (int, int);
+  std::vector<int> fCoordId (int);
   int VecId (int, int);
   int VecId (int, int, int);
   int VecId (int*);
-  int distPBC(int);
+  int fVecId (int*);
+  int distPBC (int);
 
   int x (int);
   int y (int);
@@ -39,6 +41,16 @@ class UTIL{
 };
 
 
-double sinc(double);
+double sinc (double);
+
+void prod (fftw_complex, fftw_complex, fftw_complex);
+double prod3 (fftw_complex, fftw_complex, fftw_complex);
+
+
+typedef std::pair<double, int> idpair;
+bool comparator (const idpair &l, const idpair &r)
+{
+  return l.first < r.first;
+}
 
 #endif

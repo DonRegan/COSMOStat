@@ -39,6 +39,7 @@ class COSMOStat{
   void filter (double, short);
   void shell_c2r (double*, double, double);
   std::vector<int> get_nTriangle (double, double, double, double, double);
+  void id_mod (std::vector<idpair>);
 
 
  public:
@@ -184,6 +185,9 @@ class COSMOStat{
    * Parameters:
    */
   void compute_LineCorr_2 (std::string, double, double, double, short);
+
+
+  void compute_LineCorr_F (std::string, double, double, double);
 
   /**
    * Function: Compute_PowerSpec
