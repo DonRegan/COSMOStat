@@ -164,6 +164,8 @@ class COSMOStat{
   double get_PowerSpec (double, double);
 
 
+  void COSMOStat::generate_NGfield (int);
+
   /**
    * Function: Compute_LineCorr
    * Computes and saves the line correlation function within a given range of scales.

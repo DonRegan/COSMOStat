@@ -603,6 +603,86 @@ double COSMOStat::get_PowerSpec (double k, double dk)
 }
 
 
+void COSMOStat::generate_NGfield (int p)
+{
+  fftw_complex *ngfield = new fftw_complex[ndim_];
+  fftw_complex *fngfield = new fftw_complex[ndim_];
+  fftw_plan p_ng, ip_ng;
+
+  if (dim_ == 2)
+    {
+#pragma omp critical (make_plan)
+      {
+	p_ng = fftw_plan_dft_2d(n_, n_, ngfield, fngfield, FFTW_FORWARD, FFTW_ESTIMATE);
+	ip_ng = fftw_plan_dft_2d(n_, n_, fngfield, ngfield, FFTW_BACKWARD, FFTW_ESTIMATE);
+      }
+    }
+  else
+    {
+#pragma omp critical (make_plan)
+      {
+	p_ng = fftw_plan_dft_3d(n_, n_, n_, ngfield, fngfield, FFTW_FORWARD, FFTW_ESTIMATE);
+	ip_ng = fftw_plan_dft_3d(n_, n_, n_, fngfield, ngfield, FFTW_BACKWARD, FFTW_ESTIMATE);
+      }
+    }
+  
+  // int mu1 = 1, mu2 = 1;
+  // for (int i=1; i<2*p; i+=2) mu1 *= i;
+  // for (int i=1; i<4*p; i+=2) mu2 *= i;
+  // mu2 -= mu1*mu1;
+
+  double mu1 = 1.;
+  double mu2 = 2.;
+  double exponent = 2.;
+
+  for (int ii=0; ii<ndim_; ii++)
+    {
+      double u1 = ran2(&seed);
+      double u2 = ran2(&seed);
+      // ngfield[ii][0] = pow(sqrt(-2*log(u1))*cos(2*M_PI*u2), 2*p) - mu1;
+      ngfield[ii][0] = pow(abs(sqrt(-2*log(u1))*cos(2*M_PI*u2)), exponent) - mu1;
+      ngfield[ii][1] = 0.;
+    }
+
+  fftw_execute(p_ng);
+  for (int ii=0; ii<ndim_; ii++)
+    {
+      fngfield[ii][0] /= ndim_;
+      fngfield[ii][1] /= ndim_;
+    }
+
+  for (int ii=0; ii<ndim_; ii++)
+    {
+      double k;
+      if (dim_ == 2)
+	k = 2*M_PI/l_*sqrt(pow(util_.i_to_m(util_.x(ii)),2) + pow(util_.i_to_m(util_.y(ii)),2));
+      else
+	k = 2*M_PI/l_*sqrt(pow(util_.i_to_m(util_.x(ii)),2) + pow(util_.i_to_m(util_.y(ii)),2) + pow(util_.i_to_m(util_.z(ii)),2));
+	
+      fngfield[ii][0] *= sqrt(k/pow(k+0.1,4)*ndim_/pow(l_,dim_)/mu2);
+      fngfield[ii][1] *= sqrt(k/pow(k+0.1,4)*ndim_/pow(l_,dim_)/mu2);
+    }
+
+  fngfield[0][0] = 0.;
+  fngfield[0][1] = 0.;
+
+  fftw_execute(ip_ng);
+  
+  for (int ii=0; ii<ndim_; ii++)
+    {
+      rho_[ii] = ngfield[ii][0];
+    }
+
+  fftw_execute(p_rho_);
+  util_.fftw_normalize(frho_);
+
+  delete [] ngfield;
+  delete [] fngfield;
+  fftw_destroy_plan(p_ng);
+  fftw_destroy_plan(ip_ng);
+}
+
+
 /* +++++++++++++++++++++++++++++++++ ESTIMATORS +++++++++++++++++++++++++++++++++++++*/
 
 void COSMOStat::compute_LineCorr (string fname, double rmin, double rmax, double dr, short filterMode)
