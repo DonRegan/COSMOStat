@@ -1,6 +1,6 @@
 CC=mpic++
 CFLAGS=-O3 -c -Wall -fopenmp
-LDFLAGS=-O3 -L$$FFTWDIR -lfftw3 -fopenmp
+LDFLAGS=-O3 -L$$FFTWDIR -lfftw3 -lgsl -lgslcblas -fopenmp
 SOURCES=zbox2.cpp omp_cosmoStat.cpp util.cpp load_snapshot.cpp
 OBJECTS=$(SOURCES:.cpp=.o)
 EXECUTABLE=zbox2
