@@ -5,7 +5,9 @@
 #include <complex>
 #include <vector>
 #include <stdlib.h>
-#include <omp.h>
+#include <algorithm>
+#include <gsl/gsl_sf_bessel.h>
+//#include <omp.h>
 #include "util.h"
 #include "omp_cosmoStat.h"
 #include "ran2.h"
@@ -74,6 +76,66 @@ COSMOStat::COSMOStat (int num_dimension, int num_grid, double boxsize)
         {
                 rho_[ii] = 0.;
         }
+}
+
+
+COSMOStat::COSMOStat (int num_dimension, int num_grid, double boxsize, long init_seed)
+{
+        if (num_dimension != 2 && num_dimension != 3)
+        {
+                cout << "ERROR. The supported number of dimensions are either 2 or 3." << endl;
+                exit(EXIT_FAILURE);
+        }
+
+        dim_ = num_dimension;
+        n_ = num_grid;
+        ndim_ = pow(num_grid,num_dimension);
+        fndim_ = pow(num_grid,num_dimension-1)*(int(n_/2)+1);
+        l_ = boxsize;
+        kf_ = 2*M_PI/l_;
+
+        util_.set_grid(dim_, n_);
+
+        rho_ = new double[ndim_];
+        frho_ = new fftw_complex[fndim_];
+        frho2_ = new double[fndim_];
+        idk_ = new vector<int>[dim_];
+
+        if (dim_ == 2)
+        {
+#pragma omp critical (make_plan)
+                {
+                        p_rho_ = fftw_plan_dft_r2c_2d(n_, n_, rho_, frho_, FFTW_MEASURE);
+                        ip_rho_ = fftw_plan_dft_c2r_2d(n_, n_, frho_, rho_, FFTW_MEASURE);
+                }
+        }
+        else
+        {
+#pragma omp critical (make_plan)
+                {
+                        p_rho_ = fftw_plan_dft_r2c_3d(n_, n_, n_, rho_, frho_, FFTW_MEASURE);
+                        ip_rho_ = fftw_plan_dft_c2r_3d(n_, n_, n_, frho_, rho_, FFTW_MEASURE);
+                }
+        }
+
+        for (int ii=0; ii<fndim_; ii++)
+        {
+                double k2 = 0.;
+                for (int d=0; d<dim_; d++)
+                {
+                        idk_[d].push_back(util_.i_to_m(util_.fCoordId(ii,d)));
+                        k2 += pow(idk_[d][ii],2);
+                }
+                absk_.push_back(sqrt(k2)*kf_);
+        }
+
+        for (int ii=0; ii<ndim_; ii++)
+        {
+                rho_[ii] = 0.;
+        }
+
+	seed = init_seed;
+	ran2(&seed);
 }
 
 
@@ -533,8 +595,8 @@ void COSMOStat::shell_c2r (double *rho_shell, double scale, double binSize)
                         {
                                 window *= sinc(M_PI*idk_[d][ii]/n_);
                         }
-                        frho_shell[ii][0] = frho_[ii][0]/pow(window,2);
-                        frho_shell[ii][1] = frho_[ii][1]/pow(window,2);
+                        frho_shell[ii][0] = frho_[ii][0]/pow(window,0);
+                        frho_shell[ii][1] = frho_[ii][1]/pow(window,0);
                 }
                 else
                 {
@@ -633,6 +695,31 @@ vector<int> COSMOStat::get_nTriangle (double kmin, double kmax, double dk,
 }
 
 
+void COSMOStat::id_mod (vector<idpair> *idmod)
+{
+  // for (int ii=0; ii<fndim_; ii++)
+  // {
+  //   idpair buffer;
+  //   buffer.first = absk_[ii];
+  //   buffer.second = ii;
+  //   (*idmod).push_back(buffer);
+  // }
+  for (int ii=0; ii<ndim_; ii++)
+    {
+      double k2 =0.;
+      idpair buffer;
+      for (int d=0; d<dim_; d++)
+	{
+	  k2 += pow(util_.i_to_m(util_.CoordId(ii,d)),2);
+	}
+      buffer.first = sqrt(k2)*kf_;
+      buffer.second = ii;
+      (*idmod).push_back(buffer);
+    }
+  sort((*idmod).begin(), (*idmod).end(), comparator);
+}
+
+
 double COSMOStat::get_RhoAvg ()
 {
         double rhoAvg = 0.;
@@ -659,6 +746,88 @@ double COSMOStat::get_PowerSpec (double k, double dk)
         power *= pow(l_,dim_)/nk;
 
         return power;
+}
+
+
+void COSMOStat::generate_NGfield (int p)
+{
+  fftw_complex *ngfield = new fftw_complex[ndim_];
+  fftw_complex *fngfield = new fftw_complex[ndim_];
+  fftw_plan p_ng, ip_ng;
+
+  if (dim_ == 2)
+    {
+#pragma omp critical (make_plan)
+      {
+	p_ng = fftw_plan_dft_2d(n_, n_, ngfield, fngfield, FFTW_FORWARD, FFTW_ESTIMATE);
+	ip_ng = fftw_plan_dft_2d(n_, n_, fngfield, ngfield, FFTW_BACKWARD, FFTW_ESTIMATE);
+      }
+    }
+  else
+    {
+#pragma omp critical (make_plan)
+      {
+	p_ng = fftw_plan_dft_3d(n_, n_, n_, ngfield, fngfield, FFTW_FORWARD, FFTW_ESTIMATE);
+	ip_ng = fftw_plan_dft_3d(n_, n_, n_, fngfield, ngfield, FFTW_BACKWARD, FFTW_ESTIMATE);
+      }
+    }
+  
+  // int mu1 = 1, mu2 = 1;
+  // for (int i=1; i<2*p; i+=2) mu1 *= i;
+  // for (int i=1; i<4*p; i+=2) mu2 *= i;
+  // mu2 -= mu1*mu1;
+
+  double mu1 = 0.648721;
+  double mu2 = 4.67077;
+  double exponent = 4.25;
+  double a = 1.0;
+
+  for (int ii=0; ii<ndim_; ii++)
+    {
+      double u1 = ran2(&seed);
+      double u2 = ran2(&seed);
+      // ngfield[ii][0] = pow(sqrt(-2*log(u1))*cos(2*M_PI*u2), 2*p) - mu1;
+      // ngfield[ii][0] = pow(abs(sqrt(-2*log(u1))*cos(2*M_PI*u2)), exponent) - mu1;
+      ngfield[ii][0] = (exp(a*sqrt(-2*log(u1))*cos(2*M_PI*u2))-1.)/a - mu1;
+      ngfield[ii][1] = 0.;
+    }
+
+  fftw_execute(p_ng);
+  for (int ii=0; ii<ndim_; ii++)
+    {
+      fngfield[ii][0] /= ndim_;
+      fngfield[ii][1] /= ndim_;
+    }
+
+  for (int ii=0; ii<ndim_; ii++)
+    {
+      double k;
+      if (dim_ == 2)
+	k = 2*M_PI/l_*sqrt(pow(util_.i_to_m(util_.x(ii)),2) + pow(util_.i_to_m(util_.y(ii)),2));
+      else
+	k = 2*M_PI/l_*sqrt(pow(util_.i_to_m(util_.x(ii)),2) + pow(util_.i_to_m(util_.y(ii)),2) + pow(util_.i_to_m(util_.z(ii)),2));
+	
+      fngfield[ii][0] *= sqrt(k/pow(k+0.1,4)*ndim_/pow(l_,dim_)/mu2);
+      fngfield[ii][1] *= sqrt(k/pow(k+0.1,4)*ndim_/pow(l_,dim_)/mu2);
+    }
+
+  fngfield[0][0] = 0.;
+  fngfield[0][1] = 0.;
+
+  fftw_execute(ip_ng);
+  
+  for (int ii=0; ii<ndim_; ii++)
+    {
+      rho_[ii] = ngfield[ii][0];
+    }
+
+  fftw_execute(p_rho_);
+  util_.fftw_normalize(frho_);
+
+  delete [] ngfield;
+  delete [] fngfield;
+  fftw_destroy_plan(p_ng);
+  fftw_destroy_plan(ip_ng);
 }
 
 
@@ -936,6 +1105,301 @@ void COSMOStat::compute_LineCorr_2 (string fname, double rmin, double rmax, doub
 }
 
 
+void COSMOStat::compute_LineCorr_F (string fname, double rmin, double rmax, double dr)
+{
+        double scale = rmin, invscale2;
+	double kf2 = kf_*kf_;
+        vector<idpair> idmod;
+        vector<double> mod;
+
+        fstream out;
+        out.open(fname.c_str(), ios::out);
+
+        if (!out)
+        {
+                cout << "ERROR. Cannot open file." << endl;
+                exit(EXIT_FAILURE);
+        }
+
+        id_mod(&idmod);
+        for (int ii=0; ii<ndim_; ii++)
+        {
+                mod.push_back(idmod[ii].first);
+        }
+
+	vector<int> *idk = new vector<int>[dim_];
+	for (int ii=0; ii<ndim_; ii++)
+	  {
+	    for (int d=0; d<dim_; d++)
+	      {
+		idk[d].push_back(util_.i_to_m(util_.CoordId(ii,d)));
+	      }
+	  }
+
+        // whiten(1e-7);
+
+	fftw_complex *rho = new fftw_complex[ndim_];
+	fftw_complex *frho = new fftw_complex[ndim_];
+
+	fftw_plan p_rho, ip_rho;
+	if (dim_ == 2)
+	  {
+	    p_rho = fftw_plan_dft_2d(n_, n_, rho, frho, FFTW_FORWARD, FFTW_MEASURE);
+	    ip_rho = fftw_plan_dft_2d(n_, n_, frho, rho, FFTW_BACKWARD, FFTW_MEASURE);
+	  }
+	else
+	  {
+	    p_rho = fftw_plan_dft_3d(n_, n_, n_, rho, frho, FFTW_FORWARD, FFTW_MEASURE);
+	    ip_rho = fftw_plan_dft_3d(n_, n_, n_, frho, rho, FFTW_BACKWARD, FFTW_MEASURE);
+	  }
+
+	for (int ii=0; ii<ndim_; ii++)
+	  {
+	    rho[ii][0] = rho_[ii];
+	    rho[ii][1] = 0.;
+	  }
+
+	fftw_execute(p_rho);
+	for (int ii=0; ii<ndim_; ii++)
+	  {
+	    frho[ii][0] /= ndim_;
+	    frho[ii][1] /= ndim_;
+	  }
+
+	for (int ii=0; ii<ndim_; ii++)
+	  {
+	    double re = frho[ii][0], im = frho[ii][1];
+	    double mag = sqrt(re*re+im*im);
+	    if (ii == 0 || mag < 1e-7)
+	      {
+		frho[ii][0] = 0.;
+		frho[ii][1] = 0.;
+	      }
+	    else
+	      {
+		frho[ii][0] /= mag;
+		frho[ii][1] /= mag;
+	      }
+	  }
+
+        cout << "\t Scale [l_]" << "\t\t Line Correlation" << endl;
+        cout << "----------------------------------------------------------" << endl;
+
+        // while (scale < rmax)
+        // {
+	//         invscale2 = (2*M_PI/scale)*(2*M_PI/scale);
+        //         int nmax = lower_bound(mod.begin(), mod.end(), sqrt(invscale2)) - mod.begin();
+        //         double l = 0.;
+
+        //         for (int ii=0; ii<nmax; ii++)
+        //         {
+        //                 for (int jj=0; jj<nmax; jj++)
+        //                 {
+        //                         int *Iij = new int[dim_];
+
+        //                         double k2 = mod[ii]*mod[ii];
+        //                         double q2 = mod[jj]*mod[jj];
+
+        //                         fftw_complex frho_q, frho_kq;
+        //                         double mu = 0.;
+
+        //                         for (int d=0; d<dim_; d++)
+        //                         {
+	// 				mu += idk_[d][idmod[ii].second]*idk_[d][idmod[jj].second];
+        //                         }
+	// 			mu *= kf2;
+
+        //                         if (mu < (invscale2-k2-q2)/2)
+        //                         {
+	// 			        double kqminus = k2+q2-2*mu;
+	// 			        if (kqminus < 0)
+	// 			                kqminus = 0.;
+	// 			        else
+	// 			                kqminus = sqrt(kqminus);
+        //                                 for (int d=0; d<dim_; d++)
+        //                                 {
+        //                                         Iij[d] = util_.m_to_i(idk_[d][idmod[ii].second]+
+	// 							      idk_[d][idmod[jj].second]);
+        //                                 }
+        //                                 frho_kq[0] =  frho_[util_.fVecId(Iij)][0];
+        //                                 frho_kq[1] =  -frho_[util_.fVecId(Iij)][1];
+	// 				if (dim_ == 2)
+	// 				  {
+	// 				    l += gsl_sf_bessel_J0(kqminus*scale)*prod3(frho_[idmod[ii].second],
+	// 									       frho_[idmod[jj].second], frho_kq);
+	// 				  }
+	// 				else
+	// 				  {
+	// 				    l += sinc(kqminus*scale)*prod3(frho_[idmod[ii].second],
+	// 								   frho_[idmod[jj].second], frho_kq);
+	// 				  }
+					  
+        //                         }
+
+        //                         if (mu > -(invscale2-k2-q2)/2)
+        //                         {
+        //                                 double kqplus = k2+q2+2*mu;
+	// 			        if (kqplus < 0)
+	// 			                kqplus = 0.;
+	// 			        else
+	// 			                kqplus = sqrt(kqplus);
+        //                                 if (-idk_[dim_-1][idmod[ii].second]+idk_[dim_-1][idmod[jj].second] >= 0)
+        //                                 {
+        //                                         for (int d=0; d<dim_; d++)
+        //                                         {
+        //                                                 Iij[d] = util_.m_to_i(-idk_[d][idmod[ii].second]+
+	// 								      idk_[d][idmod[jj].second]);
+        //                                         }
+        //                                         frho_q[0] =  frho_[idmod[jj].second][0];
+        //                                         frho_q[1] =  -frho_[idmod[jj].second][1];
+	// 					if (dim_ == 2)
+	// 					  {
+	// 					    l += gsl_sf_bessel_J0(kqplus*scale)*prod3(frho_[idmod[ii].second],
+	// 										      frho_q, frho_[util_.fVecId(Iij)]);						  
+	// 					  }
+	// 					else
+	// 					  {
+	// 					    l += sinc(kqplus*scale)*prod3(frho_[idmod[ii].second],
+	// 									  frho_q, frho_[util_.fVecId(Iij)]);
+	// 					  }
+        //                                 }
+        //                                 else
+        //                                 {
+        //                                         for (int d=0; d<dim_; d++)
+        //                                         {
+        //                                                 Iij[d] = util_.m_to_i(idk_[d][idmod[ii].second]-
+	// 								      idk_[d][idmod[jj].second]);
+        //                                         }
+        //                                         frho_q[0] =  frho_[idmod[jj].second][0];
+        //                                         frho_q[1] =  -frho_[idmod[jj].second][1];
+        //                                         frho_kq[0] =  frho_[util_.fVecId(Iij)][0];
+        //                                         frho_kq[1] =  -frho_[util_.fVecId(Iij)][1];
+	// 					if (dim_ == 2)
+	// 					  {
+	// 					    l += gsl_sf_bessel_J0(kqplus*scale)*prod3(frho_[idmod[ii].second],
+	// 										      frho_q, frho_kq);
+	// 					  }
+	// 					else
+	// 					  {
+	// 					    l += sinc(kqplus*scale)*prod3(frho_[idmod[ii].second],
+	// 									  frho_q, frho_kq);
+	// 					  }
+        //                                 }
+        //                         }
+
+	// 			delete [] Iij;
+        //                 }
+        //         }
+
+        //         l *= 2*pow(scale/l_,3./2*dim_);
+
+        //         out << scale << "\t" << l << endl;
+        //         cout << "\t" << fixed << scale << "\t\t" << fixed << l << endl;
+
+        //         scale += dr;
+        // }
+
+        while (scale < rmax)
+        {
+	        invscale2 = (2*M_PI/scale)*(2*M_PI/scale);
+                int nmax = lower_bound(mod.begin(), mod.end(), sqrt(invscale2)) - mod.begin();
+                double l = 0.;
+
+                for (int ii=0; ii<nmax; ii++)
+                {
+                        for (int jj=0; jj<nmax; jj++)
+                        {
+                                int *Iij = new int[dim_];
+
+                                double k2 = mod[ii]*mod[ii];
+                                double q2 = mod[jj]*mod[jj];
+
+                                fftw_complex frho_q, frho_kq;
+                                double mu = 0.;
+
+                                for (int d=0; d<dim_; d++)
+                                {
+					mu += idk[d][idmod[ii].second]*idk[d][idmod[jj].second];
+                                }
+				mu *= kf2;
+
+                                if (mu < (invscale2-k2-q2)/2)
+                                {
+				        double kqminus = k2+q2-2*mu;
+				        if (kqminus < 0)
+				                kqminus = 0.;
+				        else
+				                kqminus = sqrt(kqminus);
+
+                                        for (int d=0; d<dim_; d++)
+                                        {
+                                                Iij[d] = util_.m_to_i(-idk[d][idmod[ii].second]+
+								      -idk[d][idmod[jj].second]);
+                                        }
+
+					if (dim_ == 2)
+					  {
+					    l += gsl_sf_bessel_J0(kqminus*scale)*prod3(frho[idmod[ii].second],
+										       frho[idmod[jj].second], frho[util_.VecId(Iij)]);
+					  }
+					else
+					  {
+					    l += sinc(kqminus*scale)*prod3(frho[idmod[ii].second],
+									   frho[idmod[jj].second], frho[util_.VecId(Iij)]);
+					  }
+					  
+                                }
+
+				delete [] Iij;
+                        }
+                }
+
+                l *= pow(scale/l_,3./2*dim_);
+
+                out << scale << "\t" << l << endl;
+                cout << "\t" << fixed << scale << "\t\t" << fixed << l << endl;
+
+                scale += dr;
+        }
+
+        // while (scale < rmax)
+        // {
+	//         invscale2 = (2*M_PI/scale)*(2*M_PI/scale);
+        //         int nmax = lower_bound(mod.begin(), mod.end(), sqrt(invscale2)) - mod.begin();
+        //         double l = 0.;
+
+        //         for (int ii=0; ii<nmax; ii++)
+	// 	  {
+	// 	    if (dim_ == 2)
+	// 	      {
+	// 		l += gsl_sf_bessel_J0(mod[ii]*scale)*(frho[idmod[ii].second][0]*frho[idmod[ii].second][0]+frho[idmod[ii].second][1]*frho[idmod[ii].second][1]);
+	// 	      }
+	// 	    else
+	// 	      {
+	// 		l += sinc(mod[ii]*scale)*(frho[idmod[ii].second][0]*frho[idmod[ii].second][0]+frho[idmod[ii].second][1]*frho[idmod[ii].second][1]);
+	// 	      }
+	// 	  }
+
+        //         l *= pow(scale/l_,3./2*dim_*0);
+
+        //         out << scale << "\t" << l << endl;
+        //         cout << "\t" << fixed << scale << "\t\t" << fixed << l << endl;
+
+        //         scale += dr;
+        // }
+
+        cout << "----------------------------------------------------------" << endl;
+
+        out.close();
+
+	delete [] rho;
+	delete [] frho;
+	delete [] idk;
+	fftw_destroy_plan(p_rho);
+	fftw_destroy_plan(ip_rho);
+}
+
+
 void COSMOStat::compute_PowerSpec (string fname, double kmin, double kmax, double dk)
 {
         double scale = kmin;
@@ -958,7 +1422,7 @@ void COSMOStat::compute_PowerSpec (string fname, double kmin, double kmax, doubl
                 }
                 double re = frho_[ii][0];
                 double im = frho_[ii][1];
-                frho2_[ii] = (re*re+im*im)/pow(window,4);
+                frho2_[ii] = (re*re+im*im)/pow(window,0);
         }
 
         cout << "\t Scale [1/l_]" << "\t\t Power Spectrum" << endl;
@@ -1189,8 +1653,8 @@ void COSMOStat::compute_BiSpec (string fname, double kmin, double kmax, double d
 
                 if (dim_ == 2)
                 {
-                        // B *= pow(kf_,4)/(4*M_PI*k3_rel*scale*pow(dk,3));
-                        B /= nTriangle_[nr];
+                        B *= pow(kf_,4)/(4*M_PI*k3_rel*scale*pow(dk,3));
+                        // B /= nTriangle_[nr];
                 }
                 else
                 {
@@ -1213,8 +1677,6 @@ void COSMOStat::compute_BiSpec (string fname, double kmin, double kmax, double d
         delete [] rho_shell2;
         delete [] rho_shell3;
 }
-
-
 
 
 

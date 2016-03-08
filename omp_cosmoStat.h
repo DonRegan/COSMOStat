@@ -33,6 +33,8 @@ class COSMOStat{
   std::vector<int> nTriangle_;    //! vector used to estimate the number of triangles in
                                   //!  the bispectrum computation
 
+  long seed;
+
   void shift (fftw_complex*, double*);
   void shift (double*, double*, double*);
   void whiten (double);
@@ -53,12 +55,14 @@ class COSMOStat{
    *  int-vector containing the number of triangles for the full range of scales.
    */
   std::vector<int> get_nTriangle (double, double, double, double, double);
+  void id_mod (std::vector<idpair>*);
 
 
  public:
 
   COSMOStat ();
   COSMOStat (int, int, double);
+  COSMOStat (int, int, double, long);
   ~COSMOStat ();
 
   /**
@@ -181,6 +185,8 @@ class COSMOStat{
   double get_PowerSpec (double, double);
 
 
+  void generate_NGfield (int);
+
   /**
    * Function: Compute_LineCorr
    * Computes and saves the line correlation function within a given range of scales.
@@ -202,6 +208,9 @@ class COSMOStat{
    * Parameters:
    */
   void compute_LineCorr_2 (std::string, double, double, double, short);
+
+
+  void compute_LineCorr_F (std::string, double, double, double);
 
   /**
    * Function: Compute_PowerSpec
