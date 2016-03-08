@@ -33,7 +33,7 @@ class COSMOStat{
   std::vector<int> nTriangle_;    //! vector used to estimate the number of triangles in
                                   //!  the bispectrum computation
 
-  long seed;
+  long seed_;
 
   void shift (fftw_complex*, double*);
   void shift (double*, double*, double*);
@@ -88,7 +88,7 @@ class COSMOStat{
    */
   void cic (particle_data_pos*, int);
 
-  struct particle_data_pos* subsample (particle_data_pos*, int, double, long&);
+  struct particle_data_pos* subsample (particle_data_pos*, int, double, long);
 
   /**
    * Function: Rho2delta

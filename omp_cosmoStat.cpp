@@ -10,7 +10,6 @@
 //#include <omp.h>
 #include "util.h"
 #include "omp_cosmoStat.h"
-#include "ran2.h"
 
 using namespace std;
 
@@ -134,8 +133,8 @@ COSMOStat::COSMOStat (int num_dimension, int num_grid, double boxsize, long init
                 rho_[ii] = 0.;
         }
 
-	seed = init_seed;
-	ran2(&seed);
+	seed_ = init_seed;
+	ran2(&seed_);
 }
 
 
@@ -188,56 +187,56 @@ void COSMOStat::load (string fname)
 void COSMOStat::load_particles (string loc, int nreal, double subfrac)
 {
   char path[200], input_fname[200], basename[200];
-	int snapshot_number, NumPart;
+  int snapshot_number, NumPart;
   long seed = -7348716*nreal;
 
   // Number of files per snapshot
   int files = 10;
 
-	if (nreal < 8)
-	  {
-	    snapshot_number = 16;
-	  }
-	else if (nreal < 30)
-	  {
-	    snapshot_number = 7;
-	  }
-	else if (nreal < 40)
-	  {
-	    snapshot_number = 2;
-	  }
-	else
-	  {
-	    snapshot_number = 3;
-	  }
+  if (nreal < 8)
+    {
+      snapshot_number = 16;
+    }
+  else if (nreal < 30)
+    {
+      snapshot_number = 7;
+    }
+  else if (nreal < 40)
+    {
+      snapshot_number = 2;
+    }
+  else
+    {
+      snapshot_number = 3;
+    }
 
   // Get input filenames
-	stringstream fend, snap;
-	fend << "LCDM-750-run" << nreal+1;
-	snap << "snap" << snapshot_number;
-	sprintf(path, (loc+fend.str()+"/DATA").c_str());
-	sprintf(basename, "LCDM-L1500-N750-Tf_om_m_0.25_om_de_0.75_om_b_0.04_sig8_0.8_h_0.7");
-	sprintf(input_fname, "%s/%s_%03d", path, basename, snapshot_number);
+  stringstream fend, snap;
+  fend << "LCDM-750-run" << nreal+1;
+  snap << "snap" << snapshot_number;
+  sprintf(path, (loc+fend.str()+"/DATA").c_str());
+  sprintf(basename, "LCDM-L1500-N750-Tf_om_m_0.25_om_de_0.75_om_b_0.04_sig8_0.8_h_0.7");
+  sprintf(input_fname, "%s/%s_%03d", path, basename, snapshot_number);
 
-	// Load particle data into "P" and convert into smooth density field using CIC
-	for (int i=0; i<files; i++)
-	  {
-	    particle_data_pos *P = load_sub_snapshot(input_fname, i, NumPart);
+  // Load particle data into "P" and convert into smooth density field using CIC
+  for (int i=0; i<files; i++)
+    {
+      particle_data_pos *P = load_sub_snapshot(input_fname, i, NumPart);
       if (subfrac < 1)
-      {
-        particle_data_pos *subP = subsample(P, NumPart, subfrac, seed);
-        cic(subP, int(NumPart*subfrac));
-	      delete [] subP;
-      }
+	{
+	  particle_data_pos *subP = subsample(P, NumPart, subfrac, seed);
+	  cic(subP, int(NumPart*subfrac));
+	  delete [] subP;
+	}
       else
-      {
-        cic(P, NumPart);
-      }
+	{
+	  cic(P, NumPart);
+	}
       delete [] P;
-	  }
+    }
 
-	rho2delta();
-	do_FFT();
+  rho2delta();
+  do_FFT();
 }
 
 
@@ -274,14 +273,16 @@ void COSMOStat::cic (particle_data_pos *P, int NumPart)
 
 
 struct particle_data_pos* COSMOStat::subsample (particle_data_pos *P, int NumPart,
-                                                double fraction, long &seed)
+                                                double fraction, long seed)
 {
   int subNumPart = int(fraction*NumPart);
   struct particle_data_pos *subP = new particle_data_pos[subNumPart];
 
+  ran2(&seed);
+
   for (int i=0; i<subNumPart; i++)
   {
-    int p = int(ran2(seed)*NumPart);
+    int p = int(ran2(&seed)*NumPart);
     subP[i].Pos[0] = P[p].Pos[0];
     subP[i].Pos[1] = P[p].Pos[1];
     subP[i].Pos[2] = P[p].Pos[2];
@@ -784,8 +785,8 @@ void COSMOStat::generate_NGfield (int p)
 
   for (int ii=0; ii<ndim_; ii++)
     {
-      double u1 = ran2(&seed);
-      double u2 = ran2(&seed);
+      double u1 = ran2(&seed_);
+      double u2 = ran2(&seed_);
       // ngfield[ii][0] = pow(sqrt(-2*log(u1))*cos(2*M_PI*u2), 2*p) - mu1;
       // ngfield[ii][0] = pow(abs(sqrt(-2*log(u1))*cos(2*M_PI*u2)), exponent) - mu1;
       ngfield[ii][0] = (exp(a*sqrt(-2*log(u1))*cos(2*M_PI*u2))-1.)/a - mu1;
@@ -1359,34 +1360,21 @@ void COSMOStat::compute_LineCorr_F (string fname, double rmin, double rmax, doub
                 out << scale << "\t" << l << endl;
                 cout << "\t" << fixed << scale << "\t\t" << fixed << l << endl;
 
-                scale += dr;
+		if (scale < 80)
+		  {
+		    scale += 5*dr;
+		  }
+                else if (scale < 150)
+		  {
+		    scale += 10*dr;
+		  }
+                else
+		  {
+		    scale += 25*dr;
+		  }
+
+                // scale += dr;
         }
-
-        // while (scale < rmax)
-        // {
-	//         invscale2 = (2*M_PI/scale)*(2*M_PI/scale);
-        //         int nmax = lower_bound(mod.begin(), mod.end(), sqrt(invscale2)) - mod.begin();
-        //         double l = 0.;
-
-        //         for (int ii=0; ii<nmax; ii++)
-	// 	  {
-	// 	    if (dim_ == 2)
-	// 	      {
-	// 		l += gsl_sf_bessel_J0(mod[ii]*scale)*(frho[idmod[ii].second][0]*frho[idmod[ii].second][0]+frho[idmod[ii].second][1]*frho[idmod[ii].second][1]);
-	// 	      }
-	// 	    else
-	// 	      {
-	// 		l += sinc(mod[ii]*scale)*(frho[idmod[ii].second][0]*frho[idmod[ii].second][0]+frho[idmod[ii].second][1]*frho[idmod[ii].second][1]);
-	// 	      }
-	// 	  }
-
-        //         l *= pow(scale/l_,3./2*dim_*0);
-
-        //         out << scale << "\t" << l << endl;
-        //         cout << "\t" << fixed << scale << "\t\t" << fixed << l << endl;
-
-        //         scale += dr;
-        // }
 
         cout << "----------------------------------------------------------" << endl;
 

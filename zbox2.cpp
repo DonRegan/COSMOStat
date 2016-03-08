@@ -74,10 +74,13 @@ int main(int argc, char *argv[])
 
 	cout << "Rank " << rank << " processes snapshot " << k+1 << endl;
 
-	// Initialize COSMOStat-class, which stores the data and handles all statistics
-	COSMOStat stat(3, 1024, 1500.0);
+	stringstream fend;
+	fend << k+1;
 
-  stat.load_particles(fin, k, 1);
+	// Initialize COSMOStat-class, which stores the data and handles all statistics
+	COSMOStat stat(3, 256, 1500.0);
+
+	stat.load_particles(fin, k, 1);
 
 	// =============================================================================================
 
@@ -85,7 +88,7 @@ int main(int argc, char *argv[])
 	// ====================================  MEASURE STATISTICS ====================================
 
 	// Line correlation function
-	// stat.compute_LineCorr(fout+fend.str()+".dat", 15., 201., 5., 1);
+	stat.compute_LineCorr_F(fout+fend.str()+".dat", 15., 201., 1.);
 
 	// Power Spectrum
 	// stat.compute_PowerSpec(fout+fend.str()+".dat", 2*M_PI/1500.,
@@ -95,7 +98,7 @@ int main(int argc, char *argv[])
 	// stat.compute_BiSpec(fout+fend.str(), 2*M_PI/1000., 512*M_PI/1000., 2*M_PI/1000., 1.0, 1.0);
 
 	// Integrated Bispectrum
-	stat.compute_IntegratedBiSpec(fout+fend.str()+".dat", 16*M_PI/1500., 512*M_PI/1500., 8*M_PI/1500., 8);
+	// stat.compute_IntegratedBiSpec(fout+fend.str()+".dat", 16*M_PI/1500., 512*M_PI/1500., 8*M_PI/1500., 8);
 
 	// =============================================================================================
       }
