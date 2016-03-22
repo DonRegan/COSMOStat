@@ -32,7 +32,6 @@ class COSMOStat{
   std::vector<double> absk_;      //! vector that stores the length of those modes
   std::vector<int> nTriangle_;    //! vector used to estimate the number of triangles in
                                   //!  the bispectrum computation
-  std::vector< std::vector<int> > idTri_;
 
   long seed_;
 
@@ -57,7 +56,6 @@ class COSMOStat{
    */
   std::vector<int> get_nTriangle (double, double, double, double, double);
   void id_mod (std::vector<idpair>*);
-  void triangle_conf (std::<idpair>, int);
 
 
  public:
