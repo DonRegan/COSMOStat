@@ -104,7 +104,29 @@ int UTIL::VecId (int *x)
     }
 }
 
+int UTIL::fVecId (int x, int y)
+{
+  return fn_*y+x;
+}
+
+int UTIL::fVecId (int x, int y, int z)
+{
+  return fn2_*z+fn_*y+x;
+}
+
 int UTIL::fVecId (int *x)
+{
+  if (dim_ == 2)
+    {
+      return fn_*x[1]+x[0];
+    }
+  else
+    {
+      return fn2_*x[2]+fn_*x[1]+x[0];
+    }
+}
+
+int UTIL::fVecId (vector<int> x)
 {
   if (dim_ == 2)
     {
@@ -240,6 +262,20 @@ double sinc(double x)
     {
       return sin(x)/x;
     }
+}
+
+
+void cscalarprod (fftw_complex a, double b, fftw_complex result)
+{
+  result[0] += b*a[0];
+  result[1] += b*a[1];
+}
+
+
+void csum (fftw_complex a, fftw_complex b, fftw_complex result)
+{
+  result[0] = a[0]+b[0];
+  result[1] = a[1]+b[1];
 }
 
 

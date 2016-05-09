@@ -8,12 +8,16 @@
 #include "proto.h"
 
 
+
+#define TWOPI 6.2831853072
+
+
 class COSMOStat{
 
  private:
 
   int dim_;                       //! dimension of the density field
-  int n_, ndim_, fndim_;          //! number of grid cells per side, number of total
+  int n_, fn_, ndim_, fndim_;     //! number of grid cells per side, number of total
                                   //!  grid cells in real and Fourier space
   double l_;                      //! physical sidelength of the box
   double kf_;                     //! fundamental mode of the Fourier grid
@@ -40,6 +44,8 @@ class COSMOStat{
   void whiten (double);
   void filter (double, short);
   void shell_c2r (double*, double, double);
+  void cicNeighbours (double*, vector<int>*, vector<double>);
+  void FourierModeInterpolation (fftw_complex, double*);
 
   /**
    * Function: Get_nTriangle
@@ -211,6 +217,9 @@ class COSMOStat{
 
 
   void compute_LineCorr_F (std::string, double, double, double);
+
+
+  void compute_LineCorr_MC (std::string, double, double, double);
 
   /**
    * Function: Compute_PowerSpec

@@ -25,7 +25,10 @@ class UTIL{
   int VecId (int, int);
   int VecId (int, int, int);
   int VecId (int*);
+  int fVecId (int, int);
+  int fVecId (int, int, int);
   int fVecId (int*);
+  int fVecId (std::vector<int>);
   int distPBC (int);
 
   int x (int);
@@ -44,6 +47,7 @@ class UTIL{
 
 double sinc (double);
 
+void csum (fftw_complex, fftw_complex, fftw_complex);
 void prod (fftw_complex, fftw_complex, fftw_complex);
 double prod3 (fftw_complex, fftw_complex, fftw_complex);
 

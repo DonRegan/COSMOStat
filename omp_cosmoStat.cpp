@@ -31,6 +31,7 @@ COSMOStat::COSMOStat (int num_dimension, int num_grid, double boxsize)
 
   dim_ = num_dimension;
   n_ = num_grid;
+  fn_ = n_/2+1;
   ndim_ = pow(num_grid,num_dimension);
   fndim_ = pow(num_grid,num_dimension-1)*(int(n_/2)+1);
   l_ = boxsize;
@@ -88,6 +89,7 @@ COSMOStat::COSMOStat (int num_dimension, int num_grid, double boxsize, long init
 
   dim_ = num_dimension;
   n_ = num_grid;
+  fn_ = n_/2+1;
   ndim_ = pow(num_grid,num_dimension);
   fndim_ = pow(num_grid,num_dimension-1)*(int(n_/2)+1);
   l_ = boxsize;
@@ -609,6 +611,127 @@ void COSMOStat::shell_c2r (double *rho_shell, double scale, double binSize)
 
   fftw_free(frho_shell);
   fftw_destroy_plan(ip_rho_shell);
+}
+
+
+void cicNeighbours (double *k, vector<int> *id_neighbour, vector<double> cic_weight)
+{
+  double krel;
+  int *id_center = new int[dim_];
+  int *id_pp = new int[dim_];
+  double *dx = new double[dim_];
+  double *tx = new double[dim_];
+  double *weight = new double[dim_];
+  int n = 0;
+
+  id_neighbour.clear();
+  cic_weight.clear();
+
+  for (int d=0; d<dim_; d++)
+  {
+    krel = k[d]/kf_;
+    id_center[d] = util.m_to_i(int(krel));
+    id_pp[d] = (id_center[d]+1)%n_;
+    dx[d] = krel-int(krel);
+    tx[d] = 1.-dx[d];
+  }
+
+  if (dim_ == 2)
+  {
+    for (int i=0; i<2; i++)
+    {
+      if (i == 0) weight[0] = tx[0];
+      else weight[0] = dx[0];
+
+      for (int j=0; j<2; j++)
+      {
+        if (i == 0) id_neighbour[n].push_back(id_center[0]);
+        else  id_neighbour[n].push_back(id_pp[0]);
+        if (j == 0)
+        {
+          weight[1] = tx[1];
+          id_neighbour[n].push_back(id_center[1]);
+        }
+        else
+        {
+          weight[1] = dx[1];
+          id_neighbour[n].push_back(id_pp[1]);
+        }
+        cic_weight.push_back(weight[0]*weight[1]);
+        n++;
+      }
+    }
+  }
+  else
+  {
+    for (int i=0; i<2; i++)
+    {
+      if (i == 0) weight[0] = tx[0];
+      else weight[0] = dx[0];
+
+      for (int j=0; j<2; j++)
+      {
+        if (j == 0) weight[1] = tx[1];
+        else weight[1] = dx[1];
+
+        for (int k=0; k<2; k++)
+        {
+          if (i == 0) id_neighbour[n].push_back(id_center[0]);
+          else  id_neighbour[n].push_back(id_pp[0]);
+          if (j == 0) id_neighbour[n].push_back(id_center[1]);
+          else  id_neighbour[n].push_back(id_pp[1]);
+          if (k == 0)
+          {
+            weight[2] = tx[2];
+            id_neighbour[n].push_back(id_center[2]);
+          }
+          else
+          {
+            weight[2] = dx[2];
+            id_neighbour[n].push_back(id_pp[2]);
+          }
+          cic_weight.push_back(weight[0]*weight[1]*weight[2]);
+          n++;
+        }
+      }
+    }
+  }
+
+  delete [] id_center;
+  delete [] id_pp;
+  delete [] dx;
+  delete [] tx;
+  delete [] weight;
+}
+
+
+void FourierModeInterpolation (fftw_complex fk, double* k)
+{
+  vector<int> *id_neighbour = new vector<int>[pow(2,dim_)];
+  vector<double> cic_weight;
+  fk[0] = 0.;
+  fk[1] = 0.;
+  cicNeighbours(k, id_neighbour, cic_weight);
+
+  for (int i=0; i<cic_weight.size(); i++)
+  {
+    if (id_neighbour[i][0] < fn_)
+    {
+      fk[0] += cic_weight[i]*frho_[util_.fVecId(id_neighbour[i])][0];
+      fk[1] += cic_weight[i]*frho_[util_.fVecId(id_neighbour[i])][1];
+    }
+    else
+    {
+      for (int d=0; d<dim_; d++)
+      {
+        id_neighbour[i][d] = n_-id_neighbour[i][d];
+      }
+      fk[0] += cic_weight[i]*frho_[util_.fVecId(id_neighbour[i])][0];
+      fk[1] -= cic_weight[i]*frho_[util_.fVecId(id_neighbour[i])][1];
+    }
+  }
+
+  delete [] id_neighbour;
 }
 
 
@@ -1381,6 +1504,139 @@ void COSMOStat::compute_LineCorr_F (string fname, double rmin, double rmax, doub
   fftw_destroy_plan(ip_rho);
 }
 
+
+void COSMOStat::compute_LineCorr_MC (string fname, double rmin, double rmax, double dr)
+{
+  double scale = rmin, invscale, l;
+  double k, q, mu, theta, phi, gamma;
+  double k2, q2, kq, muCut, smu, kqminus, kernel, ctheta, cphi, cgamma, stheta, sphi, sgamma;
+  double *kvec = new double[dim_];
+  double *qvec = new double[dim_];
+  double *kqvec = new double[dim_];
+  fftw_complex fk, fq, fkq;
+
+  int nMC = 1000000;
+
+  long seed = -8762349;
+  ran2(seed);
+
+  fstream out;
+  out.open(fname.c_str(), ios::out);
+
+  if (!out)
+  {
+    cout << "ERROR. Cannot open file." << endl;
+    exit(EXIT_FAILURE);
+  }
+
+
+  whiten(1e-7);
+
+  cout << "\t Scale [l_]" << "\t\t Line Correlation" << endl;
+  cout << "----------------------------------------------------------" << endl;
+
+  while (scale < rmax)
+  {
+    l = 0.;
+    invscale = TWOPI/scale;
+
+    for (int n=0; n<nMC; n++)
+    {
+      k = invscale*ran2(seed);
+      q = invscale*ran2(seed);
+      k2 = k*k;
+      q2 = q*q;
+      kq = k*q;
+
+      muCut = (invscale*invscale-k2-q2)/(2*kq);
+      muCut = (muCut > -1.) ? min(1.,muCut) : -1.;
+      muCut++;
+
+      mu = -1+muCut*ran2(seed);
+      theta = M_PI*ran2(seed);
+      phi = TWOPI*ran2(seed);
+      gamma = TWOPI*ran2(seed);
+
+      smu = sqrt(1.-mu*mu);
+      ctheta = cos(theta);
+      cphi = cos(phi);
+      cgamma = cos(gamma);
+      stheta = sin(theta);
+      sphi = sin(phi);
+      sgamma = sin(gamma);
+
+      kqminus = sqrt(k2+q2-2*kq*mu);
+
+      if (dim_ == 2)
+      {
+        kernel = gsl_sf_bessel_J0(kqminus*scale);
+        kvec[0] = cphi;
+        kvec[1] = sphi;
+        qvec[0] = mu*kvec[0]+smu*sphi;
+        qvec[1] = mu*kvec[1]-smu*cphi;
+      }
+      else
+      {
+        kernel = sin(kqminus*scale)/(kqminus*scale);
+        kvec[0] = stheta*cphi;
+        kvec[1] = stheta*sphi;
+        kvec[2] = ctheta;
+        qvec[0] = mu*kvec[0]+smu*(ctheta*cphi*cgamma-sphi*sgamma);
+        qvec[1] = mu*kvec[1]+smu*(ctheta*sphi*cgamma+cphi*sgamma);
+        qvec[2] = mu*kvec[2]-smu*stheta*cgamma;
+      }
+
+      for (int d=0; d<dim_; d++)
+      {
+        kvec[d] *= k;
+        qvec[d] *= q;
+        kqvec[d] = -kvec[d]-qvec[d];
+      }
+
+      FourierModeInterpolation(fk, kvec);
+      FourierModeInterpolation(fq, qvec);
+      FourierModeInterpolation(fkq, kqvec);
+
+      if (dim_ == 2)
+      {
+        l += 2*kq*muCut/smu*prod3(fk, fq, fkq)*kernel;
+      }
+      else
+      {
+        l += kq*kq*muCut*prod3(fk, fq, fkq)*kernel;
+      }
+    }
+
+    if (dim_ == 2)
+    {
+      l *= 2*M_PI*pow(scale/l_,-0.5*dim_);
+    }
+    else
+    {
+      l *= 4*pow(M_PI,3)*pow(scale/l_,-0.5*dim_);
+    }
+
+    out << scale << "\t" << l << endl;
+    cout << "\t" << fixed << scale << "\t\t" << fixed << l << endl;
+
+    if (scale < 80)
+    {
+      scale += 5*dr;
+    }
+    else if (scale < 200)
+    {
+      scale += 10*dr;
+    }
+    else
+    {
+      scale += 25*dr;
+    }
+  }
+
+  cout << "----------------------------------------------------------" << endl;
+
+  out.close();
+}
 
 void COSMOStat::compute_PowerSpec (string fname, double kmin, double kmax, double dk)
 {
