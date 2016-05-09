@@ -704,7 +704,7 @@ void COSMOStat::cicNeighbours (double *k, vector<int> *id_neighbour, vector<doub
 
 void COSMOStat::FourierModeInterpolation (fftw_complex fk, double* k)
 {
-  vector<int> *id_neighbour = new vector<int>[pow(2,dim_)];
+  vector<int> *id_neighbour = new vector<int>[int(pow(2,dim_))];
   vector<double> cic_weight;
   fk[0] = 0.;
   fk[1] = 0.;
