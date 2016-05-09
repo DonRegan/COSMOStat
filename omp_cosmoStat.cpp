@@ -39,7 +39,7 @@ COSMOStat::COSMOStat (int num_dimension, int num_grid, double boxsize)
 
   util_.set_grid(dim_, n_);
 
-  rho_ = new [ndim_];
+  rho_ = new double[ndim_];
   frho_ = new fftw_complex[fndim_];
   frho2_ = new double[fndim_];
   idk_ = new vector<int>[dim_];
@@ -614,7 +614,7 @@ void COSMOStat::shell_c2r (double *rho_shell, double scale, double binSize)
 }
 
 
-void cicNeighbours (double *k, vector<int> *id_neighbour, vector<double> cic_weight)
+void COSMOStat::cicNeighbours (double *k, vector<int> *id_neighbour, vector<double> cic_weight)
 {
   double krel;
   int *id_center = new int[dim_];
@@ -624,13 +624,10 @@ void cicNeighbours (double *k, vector<int> *id_neighbour, vector<double> cic_wei
   double *weight = new double[dim_];
   int n = 0;
 
-  id_neighbour.clear();
-  cic_weight.clear();
-
   for (int d=0; d<dim_; d++)
   {
     krel = k[d]/kf_;
-    id_center[d] = util.m_to_i(int(krel));
+    id_center[d] = util_.m_to_i(int(krel));
     id_pp[d] = (id_center[d]+1)%n_;
     dx[d] = krel-int(krel);
     tx[d] = 1.-dx[d];
@@ -705,7 +702,7 @@ void cicNeighbours (double *k, vector<int> *id_neighbour, vector<double> cic_wei
 }
 
 
-void FourierModeInterpolation (fftw_complex fk, double* k)
+void COSMOStat::FourierModeInterpolation (fftw_complex fk, double* k)
 {
   vector<int> *id_neighbour = new vector<int>[pow(2,dim_)];
   vector<double> cic_weight;
@@ -963,6 +960,7 @@ void COSMOStat::compute_LineCorr (string fname, double rmin, double rmax, double
 
   double *r = new double[dim_];
   double scale = rmin, phi, theta, dphi, dtheta, sum, l;
+  double kf2 = kf_*kf_;
   int nAngle, nAngle2, wphi, wtheta;
 
   fstream out;
@@ -1518,7 +1516,7 @@ void COSMOStat::compute_LineCorr_MC (string fname, double rmin, double rmax, dou
   int nMC = 1000000;
 
   long seed = -8762349;
-  ran2(seed);
+  ran2(&seed);
 
   fstream out;
   out.open(fname.c_str(), ios::out);
@@ -1542,8 +1540,8 @@ void COSMOStat::compute_LineCorr_MC (string fname, double rmin, double rmax, dou
 
     for (int n=0; n<nMC; n++)
     {
-      k = invscale*ran2(seed);
-      q = invscale*ran2(seed);
+      k = invscale*ran2(&seed);
+      q = invscale*ran2(&seed);
       k2 = k*k;
       q2 = q*q;
       kq = k*q;
@@ -1552,10 +1550,10 @@ void COSMOStat::compute_LineCorr_MC (string fname, double rmin, double rmax, dou
       muCut = (muCut > -1.) ? min(1.,muCut) : -1.;
       muCut++;
 
-      mu = -1+muCut*ran2(seed);
-      theta = M_PI*ran2(seed);
-      phi = TWOPI*ran2(seed);
-      gamma = TWOPI*ran2(seed);
+      mu = -1+muCut*ran2(&seed);
+      theta = M_PI*ran2(&seed);
+      phi = TWOPI*ran2(&seed);
+      gamma = TWOPI*ran2(&seed);
 
       smu = sqrt(1.-mu*mu);
       ctheta = cos(theta);
