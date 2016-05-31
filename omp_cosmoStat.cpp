@@ -671,13 +671,13 @@ void COSMOStat::cicNeighbours (double *k, vector<int> *id_neighbour, vector<doub
         if (j == 0) weight[1] = tx[1];
         else weight[1] = dx[1];
 
-        for (int k=0; k<2; k++)
+        for (int l=0; l<2; l++)
         {
           if (i == 0) id_neighbour[n].push_back(id_center[0]);
           else  id_neighbour[n].push_back(id_pp[0]);
           if (j == 0) id_neighbour[n].push_back(id_center[1]);
           else  id_neighbour[n].push_back(id_pp[1]);
-          if (k == 0)
+          if (l == 0)
           {
             weight[2] = tx[2];
             id_neighbour[n].push_back(id_center[2]);
@@ -1601,7 +1601,7 @@ void COSMOStat::compute_LineCorr_MC (string fname, double rmin, double rmax, dou
       }
       else
       {
-        l += kq*kq*muCut*prod3(fk, fq, fkq)*kernel;
+        l += kq*kq*muCut*stheta*prod3(fk, fq, fkq)*kernel;
       }
     }
 
@@ -1611,7 +1611,7 @@ void COSMOStat::compute_LineCorr_MC (string fname, double rmin, double rmax, dou
     }
     else
     {
-      l *= 4*pow(M_PI,3)*pow(scale/l_,-0.5*dim_);
+      l *= 4*pow(M_PI,3)*pow(scale/l_,-0.5*dim_)/pow(invscale,4);
     }
 
     out << scale << "\t" << l << endl;
