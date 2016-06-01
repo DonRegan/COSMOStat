@@ -732,7 +732,7 @@ void COSMOStat::FourierModeInterpolation (fftw_complex fk, double* k)
 }
 
 
-void COSMOStat::FieldInterpolation (double *x)
+double COSMOStat::FieldInterpolation (double *x)
 {
   double spacing = l_/n_;
   double avg = 0.;
@@ -1740,6 +1740,12 @@ void COSMOStat::compute_LineCorr_MC (string fname, double rmin, double rmax, dou
         xmr[0] = x[0]-scale*stheta*cphi;
         xmr[1] = x[1]-scale*stheta*sphi;
         xmr[2] = x[2]-scale*ctheta;
+      }
+
+      for (int d=0; d<dim_; d++)
+      {
+        if(xpr[d] < 0) xpr[d] = l_-xpr[d];
+        if(xmr[d] < 0) xmr[d] = l_-xmr[d];
       }
 
       rho1 = FieldInterpolation(x);
