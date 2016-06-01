@@ -732,6 +732,39 @@ void COSMOStat::FourierModeInterpolation (fftw_complex fk, double* k)
 }
 
 
+void COSMOStat::FieldInterpolation (double *x)
+{
+  double spacing = l_/n_;
+  double avg = 0.;
+
+  int i = floor(x[0]/spacing);
+  int j = floor(x[1]/spacing);
+  int k = floor(x[2]/spacing);
+
+  double dx = x[0]/spacing-i;
+  double dy = x[1]/spacing-j;
+  double dz = x[2]/spacing-k;
+  double tx = 1-dx;
+  double ty = 1-dy;
+  double tz = 1-dz;
+
+  int ipp = (i+1)%n_;
+  int jpp = (j+1)%n_;
+  int kpp = (k+1)%n_;
+
+  avg += rho_[util_.VecId(i,j,k)] * tx*ty*tz;
+  avg += rho_[util_.VecId(ipp,j,k)] * dx*ty*tz;
+  avg += rho_[util_.VecId(i,jpp,k)] * tx*dy*tz;
+  avg += rho_[util_.VecId(i,j,kpp)] * tx*ty*dz;
+  avg += rho_[util_.VecId(ipp,jpp,k)] * dx*dy*tz;
+  avg += rho_[util_.VecId(ipp,j,kpp)] * dx*ty*dz;
+  avg += rho_[util_.VecId(i,jpp,kpp)] * tx*dy*dz;
+  avg += rho_[util_.VecId(ipp,jpp,kpp)] * dx*dy*dz;
+
+  return avg;
+}
+
+
 vector<int> COSMOStat::get_nTriangle (double kmin, double kmax, double dk,
   double k2_rel, double k3_rel)
 {
@@ -1503,15 +1536,151 @@ void COSMOStat::compute_LineCorr_F (string fname, double rmin, double rmax, doub
 }
 
 
+// void COSMOStat::compute_LineCorr_MC (string fname, double rmin, double rmax, double dr)
+// {
+//   double scale = rmin, invscale, l;
+//   double k, q, mu, theta, phi, gamma;
+//   double k2, q2, kq, muCut, smu, kqminus, kernel, ctheta, cphi, cgamma, stheta, sphi, sgamma;
+//   double *kvec = new double[dim_];
+//   double *qvec = new double[dim_];
+//   double *kqvec = new double[dim_];
+//   fftw_complex fk, fq, fkq;
+//
+//   int nMC = 1000000;
+//
+//   long seed = -8762349;
+//   ran2(&seed);
+//
+//   fstream out;
+//   out.open(fname.c_str(), ios::out);
+//
+//   if (!out)
+//   {
+//     cout << "ERROR. Cannot open file." << endl;
+//     exit(EXIT_FAILURE);
+//   }
+//
+//
+//   whiten(1e-7);
+//
+//   cout << "\t Scale [l_]" << "\t\t Line Correlation" << endl;
+//   cout << "----------------------------------------------------------" << endl;
+//
+//   while (scale < rmax)
+//   {
+//     l = 0.;
+//     invscale = TWOPI/scale;
+//
+//     for (int n=0; n<nMC; n++)
+//     {
+//       k = invscale*ran2(&seed);
+//       q = invscale*ran2(&seed);
+//       k2 = k*k;
+//       q2 = q*q;
+//       kq = k*q;
+//
+//       muCut = (invscale*invscale-k2-q2)/(2*kq);
+//       muCut = (muCut > -1.) ? min(1.,muCut) : -1.;
+//       muCut++;
+//
+//       mu = -1+muCut*ran2(&seed);
+//       theta = M_PI*ran2(&seed);
+//       phi = TWOPI*ran2(&seed);
+//       gamma = TWOPI*ran2(&seed);
+//
+//       smu = sqrt(1.-mu*mu);
+//       ctheta = cos(theta);
+//       cphi = cos(phi);
+//       cgamma = cos(gamma);
+//       stheta = sin(theta);
+//       sphi = sin(phi);
+//       sgamma = sin(gamma);
+//
+//       kqminus = sqrt(k2+q2-2*kq*mu);
+//
+//       if (dim_ == 2)
+//       {
+//         kernel = gsl_sf_bessel_J0(kqminus*scale);
+//         kvec[0] = cphi;
+//         kvec[1] = sphi;
+//         qvec[0] = mu*kvec[0]+smu*sphi;
+//         qvec[1] = mu*kvec[1]-smu*cphi;
+//       }
+//       else
+//       {
+//         kernel = sin(kqminus*scale)/(kqminus*scale);
+//         kvec[0] = stheta*cphi;
+//         kvec[1] = stheta*sphi;
+//         kvec[2] = ctheta;
+//         qvec[0] = mu*kvec[0]+smu*(ctheta*cphi*cgamma-sphi*sgamma);
+//         qvec[1] = mu*kvec[1]+smu*(ctheta*sphi*cgamma+cphi*sgamma);
+//         qvec[2] = mu*kvec[2]-smu*stheta*cgamma;
+//       }
+//
+//       for (int d=0; d<dim_; d++)
+//       {
+//         kvec[d] *= k;
+//         qvec[d] *= q;
+//         kqvec[d] = -kvec[d]-qvec[d];
+//       }
+//
+//       FourierModeInterpolation(fk, kvec);
+//       FourierModeInterpolation(fq, qvec);
+//       FourierModeInterpolation(fkq, kqvec);
+//
+//       if (dim_ == 2)
+//       {
+//         l += 2*kq*muCut/smu*prod3(fk, fq, fkq)*kernel;
+//       }
+//       else
+//       {
+//         l += kq*kq*muCut*stheta*prod3(fk, fq, fkq)*kernel;
+//       }
+//     }
+//
+//     if (dim_ == 2)
+//     {
+//       l *= 2*M_PI*pow(scale/l_,-0.5*dim_);
+//     }
+//     else
+//     {
+//       l *= 4*pow(M_PI,3)*pow(scale/l_,-0.5*dim_)/pow(invscale,4);
+//     }
+//
+//     out << scale << "\t" << l << endl;
+//     cout << "\t" << fixed << scale << "\t\t" << fixed << l << endl;
+//
+//     if (scale < 80)
+//     {
+//       scale += 5*dr;
+//     }
+//     else if (scale < 200)
+//     {
+//       scale += 10*dr;
+//     }
+//     else
+//     {
+//       scale += 25*dr;
+//     }
+//   }
+//
+//   cout << "----------------------------------------------------------" << endl;
+//
+//   out.close();
+// }
+
+
 void COSMOStat::compute_LineCorr_MC (string fname, double rmin, double rmax, double dr)
 {
   double scale = rmin, invscale, l;
-  double k, q, mu, theta, phi, gamma;
-  double k2, q2, kq, muCut, smu, kqminus, kernel, ctheta, cphi, cgamma, stheta, sphi, sgamma;
-  double *kvec = new double[dim_];
-  double *qvec = new double[dim_];
-  double *kqvec = new double[dim_];
-  fftw_complex fk, fq, fkq;
+  double theta, phi;
+  double ctheta, cphi, stheta, sphi;
+  double rho1, rho2, rho3;
+
+  double *x = new double[dim_];
+  double *xpr = new double[dim_];
+  double *xmr = new double[dim_];
+
 
   int nMC = 1000000;
 
@@ -1538,81 +1707,56 @@ void COSMOStat::compute_LineCorr_MC (string fname, double rmin, double rmax, dou
     l = 0.;
     invscale = TWOPI/scale;
 
+    filter(scale, 1);
+
     for (int n=0; n<nMC; n++)
     {
-      k = invscale*ran2(&seed);
-      q = invscale*ran2(&seed);
-      k2 = k*k;
-      q2 = q*q;
-      kq = k*q;
-
-      muCut = (invscale*invscale-k2-q2)/(2*kq);
-      muCut = (muCut > -1.) ? min(1.,muCut) : -1.;
-      muCut++;
-
-      mu = -1+muCut*ran2(&seed);
-      theta = M_PI*ran2(&seed);
-      phi = TWOPI*ran2(&seed);
-      gamma = TWOPI*ran2(&seed);
-
-      smu = sqrt(1.-mu*mu);
-      ctheta = cos(theta);
-      cphi = cos(phi);
-      cgamma = cos(gamma);
-      stheta = sin(theta);
-      sphi = sin(phi);
-      sgamma = sin(gamma);
-
-      kqminus = sqrt(k2+q2-2*kq*mu);
-
-      if (dim_ == 2)
-      {
-        kernel = gsl_sf_bessel_J0(kqminus*scale);
-        kvec[0] = cphi;
-        kvec[1] = sphi;
-        qvec[0] = mu*kvec[0]+smu*sphi;
-        qvec[1] = mu*kvec[1]-smu*cphi;
-      }
-      else
-      {
-        kernel = sin(kqminus*scale)/(kqminus*scale);
-        kvec[0] = stheta*cphi;
-        kvec[1] = stheta*sphi;
-        kvec[2] = ctheta;
-        qvec[0] = mu*kvec[0]+smu*(ctheta*cphi*cgamma-sphi*sgamma);
-        qvec[1] = mu*kvec[1]+smu*(ctheta*sphi*cgamma+cphi*sgamma);
-        qvec[2] = mu*kvec[2]-smu*stheta*cgamma;
-      }
 
       for (int d=0; d<dim_; d++)
       {
-        kvec[d] *= k;
-        qvec[d] *= q;
-        kqvec[d] = -kvec[d]-qvec[d];
+        x[d] = l_*ran2(&seed);
       }
 
-      FourierModeInterpolation(fk, kvec);
-      FourierModeInterpolation(fq, qvec);
-      FourierModeInterpolation(fkq, kqvec);
+      theta = M_PI*ran2(&seed);
+      phi = TWOPI*ran2(&seed);
+
+      ctheta = cos(theta);
+      cphi = cos(phi);
+      stheta = sin(theta);
+      sphi = sin(phi);
 
       if (dim_ == 2)
       {
-        l += 2*kq*muCut/smu*prod3(fk, fq, fkq)*kernel;
+        xpr[0] = x[0]+scale*cphi;
+        xpr[1] = x[1]+scale*sphi;
+        xmr[0] = x[0]-scale*cphi;
+        xmr[1] = x[1]-scale*sphi;
       }
       else
       {
-        l += kq*kq*muCut*stheta*prod3(fk, fq, fkq)*kernel;
+        xpr[0] = x[0]+scale*stheta*cphi;
+        xpr[1] = x[1]+scale*stheta*sphi;
+        xpr[2] = x[2]+scale*ctheta;
+        xmr[0] = x[0]-scale*stheta*cphi;
+        xmr[1] = x[1]-scale*stheta*sphi;
+        xmr[2] = x[2]-scale*ctheta;
+      }
+
+      rho1 = FieldInterpolation(x);
+      rho2 = FieldInterpolation(xpr);
+      rho3 = FieldInterpolation(xmr);
+
+      if (dim_ == 2)
+      {
+        l += rho1*rho2*rho3;
+      }
+      else
+      {
+        l += stheta*rho1*rho2*rho3;
       }
     }
 
-    if (dim_ == 2)
-    {
-      l *= 2*M_PI*pow(scale/l_,-0.5*dim_);
-    }
-    else
-    {
-      l *= 4*pow(M_PI,3)*pow(scale/l_,-0.5*dim_)/pow(invscale,4);
-    }
+    l *= pow(l_,dim_)*pow(scale/l_,1.5*dim_)*pow(M_PI/2,dim_-2)/nMC;
 
     out << scale << "\t" << l << endl;
     cout << "\t" << fixed << scale << "\t\t" << fixed << l << endl;
@@ -1635,6 +1779,7 @@ void COSMOStat::compute_LineCorr_MC (string fname, double rmin, double rmax, dou
 
   out.close();
 }
+
 
 void COSMOStat::compute_PowerSpec (string fname, double kmin, double kmax, double dk)
 {

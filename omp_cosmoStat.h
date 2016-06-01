@@ -46,6 +46,7 @@ class COSMOStat{
   void shell_c2r (double*, double, double);
   void cicNeighbours (double*, std::vector<int>*, std::vector<double>);
   void FourierModeInterpolation (fftw_complex, double*);
+  void FieldInterpolation (double*);
 
   /**
    * Function: Get_nTriangle
