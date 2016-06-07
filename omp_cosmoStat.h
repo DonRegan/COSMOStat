@@ -44,8 +44,6 @@ class COSMOStat{
   void whiten (double);
   void filter (double, short);
   void shell_c2r (double*, double, double);
-  void cicNeighbours (double*, std::vector<int>*, std::vector<double>);
-  void FourierModeInterpolation (fftw_complex, double*);
   double FieldInterpolation (double*);
 
   /**
