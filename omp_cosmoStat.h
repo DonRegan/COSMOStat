@@ -60,6 +60,8 @@ class COSMOStat{
    *  int-vector containing the number of triangles for the full range of scales.
    */
   std::vector<int> get_nTriangle (double, double, double, double, double);
+  std::vector<int> get_nTriangle (double, double, double);
+
   void id_mod (std::vector<idpair>*);
 
 

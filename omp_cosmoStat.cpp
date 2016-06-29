@@ -730,6 +730,90 @@ vector<int> COSMOStat::get_nTriangle (double kmin, double kmax, double dk,
 }
 
 
+vector<int> COSMOStat::get_nTriangle (double kmin, double kmax, double dk)
+{
+  double k[3];
+  for (int i=0; i<3; i++) k[i] = kmin;
+
+  double **shell = new double*[3];
+  fftw_complex **fshell = new fftw_complex*[3];
+  fftw_plan ip_shell[3];
+
+  vector<int> nTriangle;
+
+  for (int i=0; i<3; i++)
+  {
+    shell[i] = new double[ndim_];
+    fshell[i] = new fftw_complex[fndim_];
+  }
+
+  if (dim_ == 2)
+  {
+    for (int i=0; i<3; i++)
+    {
+      ip_shell[i] = fftw_plan_dft_c2r_2d(n_, n_, fshell[i], shell[i],
+        FFTW_ESTIMATE);
+    }
+  }
+  else
+  {
+    for (int i=0; i<3; i++)
+    {
+      ip_shell[i] = fftw_plan_dft_c2r_3d(n_, n_, n_, fshell[i], shell[i],
+        FFTW_ESTIMATE);
+    }
+  }
+
+  while (k[0] < kmax)
+  {
+    while (k[1] < kmax)
+    {
+      while (k[2] < kmax)
+      {
+        for (int ii=0; ii<fndim_; ii++)
+        {
+          for (int i=0; i<3; i++)
+          {
+            if (absk_[ii] > k[i]-dk/2 && absk_[ii] < k[i]+dk/2)
+            {
+              fshell[i][ii][0] = 1.;
+              fshell[i][ii][1] = 1.;
+            }
+            else
+            {
+              fshell[i][ii][0] = 0.;
+              fshell[i][ii][1] = 0.;
+            }
+          }
+        }
+
+        for (int i=0; i<3; i++) fftw_execute(ip_shell[i]);
+
+        double ntr = 0.;
+        for (int ii=0; ii<ndim_; ii++)
+        {
+          ntr += shell[0][ii]*shell[1][ii]*shell[2][ii];
+        }
+
+        nTriangle.push_back(int(ntr/ndim_));
+        k[2] += dk;
+      }
+      k[1] += dk;
+    }
+    k[0] += dk;
+  }
+
+  for (int i=0; i<3; i++)
+  {
+    delete [] shell[i];
+    delete [] fshell[i];
+    fftw_destroy_plan(ip_shell[i]);
+  }
+
+  return nTriangle;
+}
+
+
 void COSMOStat::id_mod (vector<idpair> *idmod)
 {
   // for (int ii=0; ii<fndim_; ii++)
@@ -1813,6 +1897,93 @@ void COSMOStat::compute_BiSpec (string fname, double kmin, double kmax, double d
   delete [] rho_shell3;
 }
 
+void COSMOStat::compute_BiSpec (string fname, double kmin, double kmax, double dk)
+{
+  double k1 = kmin, k2 = kmin, k3 = kmin;
+  double *rho_shell1 = new double[ndim_];
+  double *rho_shell2 = new double[ndim_];
+  double *rho_shell3 = new double[ndim_];
+
+  fstream out;
+  out.open(fname.c_str(), ios::out);
+
+  if (!out)
+  {
+    cout << "Error. Cannot open file." << endl;
+    exit(EXIT_FAILURE);
+  }
+
+  if (kmin < kf_)
+  {
+    cout << "WARNING. Value for kmin smaller than fundamental mode. Setting kmin = 2*Pi/l_."
+    << endl;
+    kmin = kf_;
+    scale = kmin;
+  }
+  if (kmax > n_*kf_/2)
+  {
+    cout << "WARNING. Value for kmax bigger than the Nyquist frequency. Setting kmax = n_*Pi/l_."
+    << endl;
+    kmax = n_*kf_/2;
+  }
+
+  if (nTriangle_.size() == 0)
+  {
+    COSMOStat TriMesh(dim_,(1+floor(3.*int(dk/kf_)*int(kmax/kf_)/10))*10, l_);
+    nTriangle_ = TriMesh.get_nTriangle(kmin, kmax, dk);
+  }
+
+  cout << "\t k_1, k_2, k_3 [1/l_]" << "\t\t Bispectrum" << endl;
+  cout << "----------------------------------------------------------" << endl;
+
+
+  int nr = 0;
+  while (k1 < kmax)
+  {
+    while (k2 < kmax)
+    {
+      while (k3 < kmax)
+      {
+        shell_c2r(rho_shell1, k1, dk);
+        shell_c2r(rho_shell2, k2, dk);
+        shell_c2r(rho_shell3, k3, dk);
+
+        double B = 0.;
+        for (int ii=0; ii<ndim_; ii++)
+        {
+          B += rho_shell1[ii]*rho_shell2[ii]*rho_shell3[ii];
+        }
+
+        if (dim_ == 2)
+        {
+          // B *= pow(kf_,4)/(4*M_PI*k3_rel*scale*pow(dk,3));
+          B /= nTriangle_[nr];
+        }
+        else
+        {
+          // B *= pow(kf_,6)/(8*M_PI*M_PI*k2_rel*k3_rel*pow(scale*dk,3));
+          B /= nTriangle_[nr];
+        }
+
+        B *= pow(l_,2*dim_)/ndim_;
+
+        out << k1 << "\t" << k2 << "\t" << k3 << "\t" << B << endl;
+        cout << "\t " << fixed << k1 << "\t" << k2 << "\t" << k3 << "\t\t " << fixed << B << endl;
+
+        nr++;
+        k3 += dk;
+      }
+      k2 += dk;
+    }
+    k1 += dk;
+  }
+
+  cout << "----------------------------------------------------------" << endl;
+
+  delete [] rho_shell1;
+  delete [] rho_shell2;
+  delete [] rho_shell3;
+}
 
 
 
