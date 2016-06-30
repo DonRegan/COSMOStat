@@ -34,7 +34,7 @@ class COSMOStat{
   std::vector<int> *idk_;         //! dim-dimensional vector that stores the k-modes in
                                   //!  fundamental units, i.e. kf = 2Pi/L
   std::vector<double> absk_;      //! vector that stores the length of those modes
-  std::vector<int> nTriangle_;    //! vector used to estimate the number of triangles in
+  std::vector<double> nTriangle_; //! vector used to estimate the number of triangles in
                                   //!  the bispectrum computation
 
   long seed_;

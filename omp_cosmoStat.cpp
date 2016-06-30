@@ -597,8 +597,8 @@ void COSMOStat::shell_c2r (double *rho_shell, double scale, double binSize)
       {
         window *= sinc(M_PI*idk_[d][ii]/n_);
       }
-      frho_shell[ii][0] = frho_[ii][0]/pow(window,0);
-      frho_shell[ii][1] = frho_[ii][1]/pow(window,0);
+      frho_shell[ii][0] = frho_[ii][0]/pow(window,2);
+      frho_shell[ii][1] = frho_[ii][1]/pow(window,2);
     }
     else
     {
@@ -647,7 +647,7 @@ double COSMOStat::FieldInterpolation (double *x)
 }
 
 
-vector<int> COSMOStat::get_nTriangle (double kmin, double kmax, double dk,
+vector<double> COSMOStat::get_nTriangle (double kmin, double kmax, double dk,
   double k2_rel, double k3_rel)
 {
   double scale = kmin, k[3];
@@ -656,7 +656,7 @@ vector<int> COSMOStat::get_nTriangle (double kmin, double kmax, double dk,
   fftw_complex **fshell = new fftw_complex*[3];
   fftw_plan ip_shell[3];
 
-  vector<int> nTriangle;
+  vector<double> nTriangle;
 
   for (int i=0; i<3; i++)
   {
@@ -715,7 +715,7 @@ vector<int> COSMOStat::get_nTriangle (double kmin, double kmax, double dk,
       ntr += shell[0][ii]*shell[1][ii]*shell[2][ii];
     }
 
-    nTriangle.push_back(int(ntr/ndim_));
+    nTriangle.push_back(ntr/ndim_);
     scale += dk;
   }
 
@@ -730,7 +730,7 @@ vector<int> COSMOStat::get_nTriangle (double kmin, double kmax, double dk,
 }
 
 
-vector<int> COSMOStat::get_nTriangle (double kmin, double kmax, double dk)
+vector<double> COSMOStat::get_nTriangle (double kmin, double kmax, double dk)
 {
   double k[3];
   for (int i=0; i<3; i++) k[i] = kmin;
@@ -739,7 +739,7 @@ vector<int> COSMOStat::get_nTriangle (double kmin, double kmax, double dk)
   fftw_complex **fshell = new fftw_complex*[3];
   fftw_plan ip_shell[3];
 
-  vector<int> nTriangle;
+  vector<double> nTriangle;
 
   for (int i=0; i<3; i++)
   {
@@ -766,36 +766,41 @@ vector<int> COSMOStat::get_nTriangle (double kmin, double kmax, double dk)
 
   while (k[0] < kmax)
   {
+    k[1] = k[0];
     while (k[1] < kmax)
     {
+      k[2] = k[1];
       while (k[2] < kmax)
       {
-        for (int ii=0; ii<fndim_; ii++)
+        if (k[2] < k[0]+k[1])
         {
-          for (int i=0; i<3; i++)
+          for (int ii=0; ii<fndim_; ii++)
           {
-            if (absk_[ii] > k[i]-dk/2 && absk_[ii] < k[i]+dk/2)
+            for (int i=0; i<3; i++)
             {
-              fshell[i][ii][0] = 1.;
-              fshell[i][ii][1] = 1.;
-            }
-            else
-            {
-              fshell[i][ii][0] = 0.;
-              fshell[i][ii][1] = 0.;
+              if (absk_[ii] > k[i]-dk/2 && absk_[ii] < k[i]+dk/2)
+              {
+                fshell[i][ii][0] = 1.;
+                fshell[i][ii][1] = 0.;
+              }
+              else
+              {
+                fshell[i][ii][0] = 0.;
+                fshell[i][ii][1] = 0.;
+              }
             }
           }
+
+          for (int i=0; i<3; i++) fftw_execute(ip_shell[i]);
+
+          double ntr = 0.;
+          for (int ii=0; ii<ndim_; ii++)
+          {
+            ntr += shell[0][ii]*shell[1][ii]*shell[2][ii];
+          }
+
+          nTriangle.push_back(ntr/ndim_);
         }
-
-        for (int i=0; i<3; i++) fftw_execute(ip_shell[i]);
-
-        double ntr = 0.;
-        for (int ii=0; ii<ndim_; ii++)
-        {
-          ntr += shell[0][ii]*shell[1][ii]*shell[2][ii];
-        }
-
-        nTriangle.push_back(int(ntr/ndim_));
         k[2] += dk;
       }
       k[1] += dk;
@@ -1641,7 +1646,7 @@ void COSMOStat::compute_PowerSpec (string fname, double kmin, double kmax, doubl
     }
     double re = frho_[ii][0];
     double im = frho_[ii][1];
-    frho2_[ii] = (re*re+im*im)/pow(window,0);
+    frho2_[ii] = (re*re+im*im)/pow(window,2);
   }
 
   cout << "\t Scale [1/l_]" << "\t\t Power Spectrum" << endl;
@@ -1940,37 +1945,42 @@ void COSMOStat::compute_BiSpec (string fname, double kmin, double kmax, double d
   int nr = 0;
   while (k1 < kmax)
   {
+    k2 = k1;
     while (k2 < kmax)
     {
+      k3 = k2;
       while (k3 < kmax)
       {
-        shell_c2r(rho_shell1, k1, dk);
-        shell_c2r(rho_shell2, k2, dk);
-        shell_c2r(rho_shell3, k3, dk);
-
-        double B = 0.;
-        for (int ii=0; ii<ndim_; ii++)
+        if (k3 < k1+k2)
         {
-          B += rho_shell1[ii]*rho_shell2[ii]*rho_shell3[ii];
+          shell_c2r(rho_shell1, k1, dk);
+          shell_c2r(rho_shell2, k2, dk);
+          shell_c2r(rho_shell3, k3, dk);
+
+          double B = 0.;
+          for (int ii=0; ii<ndim_; ii++)
+          {
+            B += rho_shell1[ii]*rho_shell2[ii]*rho_shell3[ii];
+          }
+
+          if (dim_ == 2)
+          {
+            // B *= pow(kf_,4)/(4*M_PI*k3_rel*scale*pow(dk,3));
+            B /= nTriangle_[nr];
+          }
+          else
+          {
+            // B *= pow(kf_,6)/(8*M_PI*M_PI*k2_rel*k3_rel*pow(scale*dk,3));
+            B /= nTriangle_[nr];
+          }
+
+          B *= pow(l_,2*dim_)/ndim_;
+
+          out << k1 << "\t" << k2 << "\t" << k3 << "\t" << B << endl;
+          cout << "\t " << fixed << k1 << "\t" << k2 << "\t" << k3 << "\t\t " << fixed << B << endl;
+
+          nr++;
         }
-
-        if (dim_ == 2)
-        {
-          // B *= pow(kf_,4)/(4*M_PI*k3_rel*scale*pow(dk,3));
-          B /= nTriangle_[nr];
-        }
-        else
-        {
-          // B *= pow(kf_,6)/(8*M_PI*M_PI*k2_rel*k3_rel*pow(scale*dk,3));
-          B /= nTriangle_[nr];
-        }
-
-        B *= pow(l_,2*dim_)/ndim_;
-
-        out << k1 << "\t" << k2 << "\t" << k3 << "\t" << B << endl;
-        cout << "\t " << fixed << k1 << "\t" << k2 << "\t" << k3 << "\t\t " << fixed << B << endl;
-
-        nr++;
         k3 += dk;
       }
       k2 += dk;
