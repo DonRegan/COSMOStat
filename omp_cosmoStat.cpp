@@ -186,7 +186,7 @@ void COSMOStat::load (string fname)
 }
 
 
-void COSMOStat::load_particles (string loc, int nreal, double subfrac)
+void COSMOStat::load_particles (string loc, int z, int nreal, double subfrac)
 {
   char path[200], input_fname[200], basename[200];
   int snapshot_number, NumPart;
@@ -195,21 +195,65 @@ void COSMOStat::load_particles (string loc, int nreal, double subfrac)
   // Number of files per snapshot
   int files = 10;
 
-  if (nreal < 8)
+  switch (z)
   {
-    snapshot_number = 16;
-  }
-  else if (nreal < 30)
-  {
-    snapshot_number = 7;
-  }
-  else if (nreal < 40)
-  {
-    snapshot_number = 2;
-  }
-  else
-  {
-    snapshot_number = 3;
+    case 1:
+      if (nreal < 8)
+      {
+        snapshot_number = 16;
+      }
+      else if (nreal < 30)
+      {
+        snapshot_number = 7;
+      }
+      else if (nreal < 40)
+      {
+        snapshot_number = 2;
+      }
+      else
+      {
+        snapshot_number = 3;
+      }
+      break;
+    case 2:
+      if (nreal < 8)
+      {
+        snapshot_number = 10;
+      }
+      else if (nreal < 30)
+      {
+        snapshot_number = 6;
+      }
+      else if (nreal < 40)
+      {
+        snapshot_number = 1;
+      }
+      else
+      {
+        snapshot_number = 2;
+      }
+      break;
+    case 3:
+      if (nreal < 8)
+      {
+        snapshot_number = 6;
+      }
+      else if (nreal < 30)
+      {
+        snapshot_number = 5;
+      }
+      else if (nreal < 40)
+      {
+        snapshot_number = 0;
+      }
+      else
+      {
+        snapshot_number = 1;
+      }
+      break;
+    default:
+      cout << "ERROR. Non-support redshift slice. Choose from [1, 2, 3] corresponding to z = [0.0, 0.52, 1.0]." << endl;
+      exit(EXIT_FAILURE);
   }
 
   // Get input filenames
@@ -1923,7 +1967,9 @@ void COSMOStat::compute_BiSpec (string fname, double kmin, double kmax, double d
     cout << "WARNING. Value for kmin smaller than fundamental mode. Setting kmin = 2*Pi/l_."
     << endl;
     kmin = kf_;
-    scale = kmin;
+    k1 = kmin;
+    k2 = kmin;
+    k3 = kmin;
   }
   if (kmax > n_*kf_/2)
   {

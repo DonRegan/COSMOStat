@@ -59,8 +59,8 @@ class COSMOStat{
    * Returns:
    *  int-vector containing the number of triangles for the full range of scales.
    */
-  std::vector<int> get_nTriangle (double, double, double, double, double);
-  std::vector<int> get_nTriangle (double, double, double);
+  std::vector<double> get_nTriangle (double, double, double, double, double);
+  std::vector<double> get_nTriangle (double, double, double);
 
   void id_mod (std::vector<idpair>*);
 
@@ -82,7 +82,7 @@ class COSMOStat{
    */
   void load (std::string);
 
-  void load_particles (std::string, int, double);
+  void load_particles (std::string, int, int, double);
 
   /**
    * Function: Cic
@@ -272,6 +272,7 @@ class COSMOStat{
    */
   void compute_IntegratedBiSpec (std::string, double, double, double, int);
   void compute_BiSpec (std::string, double, double, double, double, double);
+  void compute_BiSpec (std::string, double, double, double);
 };
 
 #endif
