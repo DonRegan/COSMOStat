@@ -1825,10 +1825,12 @@ void COSMOStat::compute_IntegratedBiSpec (string fname, double kmin, double kmax
   cout << "\t k [1/l_]" << "\t\t Integrated Bispectrum [V^2]" << endl;
   cout << "----------------------------------------------------------" << endl;
 
-  vector<double> iB;
+  vector<double> iB, PAvg;
+  double rhoVar = 0.;
   while (scale < kmax)
   {
     iB.push_back(0.0);
+    PAvg.push_back(0.0);
     scale += dk;
   }
   scale = kmin;
@@ -1837,25 +1839,30 @@ void COSMOStat::compute_IntegratedBiSpec (string fname, double kmin, double kmax
   {
     subBox.set_RhoSubCube(rho_, n_, i);
     double rhoAvg = subBox.get_RhoAvg();
+    rhoVar += rhoAvg*rhoAvg;
 
     for (int j=0; j<iB.size(); j++)
     {
       double power = subBox.get_PowerSpec(scale, dk);
+      PAvg[j] += power;
       iB[j] += power*rhoAvg;
       scale += dk;
     }
     scale = kmin;
   }
 
+  rhoVar /= pow(nCut, dim_);
   for (int i=0; i<iB.size(); i++)
   {
-    iB[i] /= pow(nCut,dim_);
+    PAvg[i] /= pow(nCut, dim_);
+    iB[i] /= pow(nCut, dim_);
   }
 
   for (int i=0; i<iB.size(); i++)
   {
-    out << scale << "\t" << iB[i] << endl;
-    cout << "\t " << fixed << scale << "\t\t " << fixed << iB[i] << endl;
+    out << scale << "\t" << iB[i] << "\t" << iB[i]/(PAvg[i]*rhoVar) << endl;
+    cout << "\t " << fixed << scale << "\t\t " << fixed << iB[i] << "\t\t"
+         << fixed << iB[i]/(PAvg[i]*rhoVar) << endl;
     scale += dk;
   }
 
@@ -1980,8 +1987,28 @@ void COSMOStat::compute_BiSpec (string fname, double kmin, double kmax, double d
 
   if (nTriangle_.size() == 0)
   {
-    COSMOStat TriMesh(dim_,(1+floor(3.*int(dk/kf_)*int(kmax/kf_)/10))*10, l_);
-    nTriangle_ = TriMesh.get_nTriangle(kmin, kmax, dk);
+    fstream tri;
+    tri.open("nTri_kmax_0.3_dk_8kf.dat", ios::in);
+
+    if (tri.is_open())
+    {
+      double buffer;
+      while (tri >> buffer)
+        nTriangle_.push_back(buffer);
+    }
+    else
+    {
+      nTriangle_ = get_nTriangle(kmin, kmax, dk);
+      fstream tri_out;
+      tri_out.open("nTri_kmax_0.3_dk_8kf.dat", ios::out);
+      for (int i=0; i<nTriangle_.size(); i++)
+      {
+        tri_out << nTriangle_[i] << endl;
+      }
+      tri_out.close();
+    }
+
+    tri.close();
   }
 
   cout << "\t k_1, k_2, k_3 [1/l_]" << "\t\t Bispectrum" << endl;
