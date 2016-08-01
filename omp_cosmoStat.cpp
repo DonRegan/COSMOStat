@@ -931,7 +931,7 @@ vector<double> COSMOStat::get_BiSpec (double kmin, double kmax, double dk)
     fstream tri;
     stringstream fname_tri;
     fname_tri << "nTri_kmax_" << kmax << "_dk_" << printf("%.3f", dk) << ".dat";
-    tri.open(fname_tri.str(), ios::in);
+    tri.open((fname_tri.str()).c_str(), ios::in);
 
     if (tri.is_open())
     {
@@ -943,7 +943,7 @@ vector<double> COSMOStat::get_BiSpec (double kmin, double kmax, double dk)
     {
       nTriangle_ = get_nTriangle(kmin, kmax, dk);
       fstream tri_out;
-      tri_out.open(fname_tri.str(), ios::out);
+      tri_out.open((fname_tri.str()).c_str(), ios::out);
       for (int i=0; i<nTriangle_.size(); i++)
       {
         tri_out << nTriangle_[i] << endl;
@@ -1826,7 +1826,11 @@ void COSMOStat::compute_LineCorr_MC (string fname, double rmin, double rmax, dou
     out << scale << "\t" << l << endl;
     cout << "\t" << fixed << scale << "\t\t" << fixed << l << endl;
 
-    if (scale < 80)
+    if (scale < 25)
+    {
+      scale += 2.5*dr;
+    }
+    else if (scale < 80)
     {
       scale += 5*dr;
     }
@@ -1868,7 +1872,7 @@ void COSMOStat::compute_PowerSpec (string fname, double kmin, double kmax, doubl
     }
     double re = frho_[ii][0];
     double im = frho_[ii][1];
-    frho2_[ii] = (re*re+im*im)/pow(window,2);
+    frho2_[ii] = (re*re+im*im)/pow(window, 4);
   }
 
   cout << "\t Scale [1/l_]" << "\t\t Power Spectrum" << endl;
@@ -2168,7 +2172,7 @@ void COSMOStat::compute_BiSpec (string fname, double kmin, double kmax, double d
     fstream tri;
     stringstream fname_tri;
     fname_tri << "nTri_kmax_" << kmax << "_dk_" << printf("%.3f", dk) << ".dat";
-    tri.open(fname_tri.str(), ios::in);
+    tri.open((fname_tri.str()).c_str(), ios::in);
 
     if (tri.is_open())
     {
@@ -2180,7 +2184,7 @@ void COSMOStat::compute_BiSpec (string fname, double kmin, double kmax, double d
     {
       nTriangle_ = get_nTriangle(kmin, kmax, dk);
       fstream tri_out;
-      tri_out.open(fname_tri.str(), ios::out);
+      tri_out.open((fname_tri.str()).c_str(), ios::out);
       for (int i=0; i<nTriangle_.size(); i++)
       {
         tri_out << nTriangle_[i] << endl;
