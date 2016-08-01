@@ -917,6 +917,94 @@ double COSMOStat::get_PowerSpec (double k, double dk)
 }
 
 
+vector<double> COSMOStat::get_BiSpec (double kmin, double kmax, double dk)
+{
+  double k1 = kmin, k2 = kmin, k3 = kmin;
+  double *rho_shell1 = new double[ndim_];
+  double *rho_shell2 = new double[ndim_];
+  double *rho_shell3 = new double[ndim_];
+
+  vector<double> bispec;
+
+  if (nTriangle_.size() == 0)
+  {
+    fstream tri;
+    stringstream fname_tri;
+    fname_tri << "nTri_kmax_" << kmax << "_dk_" << printf("%.3f", dk) << ".dat";
+    tri.open(fname_tri.str(), ios::in);
+
+    if (tri.is_open())
+    {
+      double buffer;
+      while (tri >> buffer)
+        nTriangle_.push_back(buffer);
+    }
+    else
+    {
+      nTriangle_ = get_nTriangle(kmin, kmax, dk);
+      fstream tri_out;
+      tri_out.open(fname_tri.str(), ios::out);
+      for (int i=0; i<nTriangle_.size(); i++)
+      {
+        tri_out << nTriangle_[i] << endl;
+      }
+      tri_out.close();
+    }
+
+    tri.close();
+  }
+
+  int nr = 0;
+  while (k1 < kmax)
+  {
+    k2 = k1;
+    while (k2 < kmax)
+    {
+      k3 = k2;
+      while (k3 < kmax)
+      {
+        if (k3 < k1+k2)
+        {
+          shell_c2r(rho_shell1, k1, dk);
+          shell_c2r(rho_shell2, k2, dk);
+          shell_c2r(rho_shell3, k3, dk);
+
+          double B = 0.;
+          for (int ii=0; ii<ndim_; ii++)
+          {
+            B += rho_shell1[ii]*rho_shell2[ii]*rho_shell3[ii];
+          }
+
+          if (dim_ == 2)
+          {
+            // B *= pow(kf_,4)/(4*M_PI*k3_rel*scale*pow(dk,3));
+            B /= nTriangle_[nr];
+          }
+          else
+          {
+            // B *= pow(kf_,6)/(8*M_PI*M_PI*k2_rel*k3_rel*pow(scale*dk,3));
+            B /= nTriangle_[nr];
+          }
+
+          B *= pow(l_,2*dim_)/ndim_;
+          bispec.push_back(B);
+          nr++;
+        }
+        k3 += dk;
+      }
+      k2 += dk;
+    }
+    k1 += dk;
+  }
+
+  delete [] rho_shell1;
+  delete [] rho_shell2;
+  delete [] rho_shell3;
+
+  return bispec;
+}
+
+
 void COSMOStat::generate_NGfield (int p)
 {
   fftw_complex *ngfield = new fftw_complex[ndim_];
@@ -1266,6 +1354,96 @@ void COSMOStat::compute_LineCorr (string fname, double rmin, double rmax, double
 
   fftw_destroy_plan(p_rho_F);
   fftw_destroy_plan(ip_rho_F);
+}
+
+
+void COSMOStat::compute_LineCorr_fromB (string fname, double rmin, double rmax, double dr)
+{
+  double scale = rmin, l, invscale2;
+  double q1, q2, q3;
+  vector<double> k1, k2, k3;
+
+  fstream out;
+  out.open(fname.c_str(), ios::out);
+
+  if (!out)
+  {
+    cout << "ERROR. Cannot open file." << endl;
+    exit(EXIT_FAILURE);
+  }
+
+  whiten(1e-7);
+
+  vector<double> B = get_BiSpec(kf_/2, M_PI/rmin, kf_);
+  q1 = kf_/2;
+  while (q1 < M_PI/rmin)
+  {
+    q2 = q1;
+    while (q2 < M_PI/rmin)
+    {
+      q3 = q2;
+      while (q3 < M_PI/rmin)
+      {
+        if (q3 < q1+q2)
+        {
+          k1.push_back(q1*q1);
+          k2.push_back(q2*q2);
+          k3.push_back(q3*q3);
+        }
+        q3 += kf_;
+      }
+      q2 += kf_;
+    }
+    q1 += kf_;
+  }
+
+  cout << "\t Scale [l_]" << "\t\t Line Correlation" << endl;
+  cout << "----------------------------------------------------------" << endl;
+
+  while (scale < rmax)
+  {
+    l = 0.;
+    invscale2 = pow(TWOPI/scale,2);
+
+    for (int i=0; i<B.size(); i++)
+    {
+      if (k1[i] < invscale2 && k2[i] < invscale2 && k3[i] < invscale2)
+      {
+        double j0_123 = gsl_sf_bessel_j0(sqrt(2*k1[i]+2*k2[i]-k3[i])*scale);
+        double j0_231 = gsl_sf_bessel_j0(sqrt(2*k2[i]+2*k3[i]-k1[i])*scale);
+        double j0_312 = gsl_sf_bessel_j0(sqrt(2*k3[i]+2*k1[i]-k2[i])*scale);
+        l += B[i]*(2*j0_123+j0_231+j0_312);
+      }
+    }
+
+    l *= pow(scale/l_,3./2*dim_);
+
+    out << scale << "\t" << l << endl;
+    cout << "\t" << fixed << scale << "\t\t" << fixed << l << endl;
+
+    if (scale < 25)
+    {
+      scale += 2.5*dr;
+    }
+    else if (scale < 80)
+    {
+      scale += 5*dr;
+    }
+    else if (scale < 200)
+    {
+      scale += 10*dr;
+    }
+    else
+    {
+      scale += 25*dr;
+    }
+
+    // scale += dr;
+  }
+
+  cout << "----------------------------------------------------------" << endl;
+
+  out.close();
 }
 
 
@@ -1988,7 +2166,9 @@ void COSMOStat::compute_BiSpec (string fname, double kmin, double kmax, double d
   if (nTriangle_.size() == 0)
   {
     fstream tri;
-    tri.open("nTri_kmax_0.3_dk_8kf.dat", ios::in);
+    stringstream fname_tri;
+    fname_tri << "nTri_kmax_" << kmax << "_dk_" << printf("%.3f", dk) << ".dat";
+    tri.open(fname_tri.str(), ios::in);
 
     if (tri.is_open())
     {
@@ -2000,7 +2180,7 @@ void COSMOStat::compute_BiSpec (string fname, double kmin, double kmax, double d
     {
       nTriangle_ = get_nTriangle(kmin, kmax, dk);
       fstream tri_out;
-      tri_out.open("nTri_kmax_0.3_dk_8kf.dat", ios::out);
+      tri_out.open(fname_tri.str(), ios::out);
       for (int i=0; i<nTriangle_.size(); i++)
       {
         tri_out << nTriangle_[i] << endl;

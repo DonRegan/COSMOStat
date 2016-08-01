@@ -192,6 +192,9 @@ class COSMOStat{
   double get_PowerSpec (double, double);
 
 
+  std::vector<double> get_BiSpec (double, double, double);
+
+
   void generate_NGfield (int);
 
   /**
@@ -207,6 +210,9 @@ class COSMOStat{
    *   be set to '1' for now, which corresponds to a spherical top hat
    */
   void compute_LineCorr (std::string, double, double, double, short);
+
+
+  void compute_LineCorr_fromB (std::string, double, double, double);
 
   /**
    * Function: Compute_LineCorr_2
