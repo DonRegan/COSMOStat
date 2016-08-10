@@ -10,29 +10,29 @@ using namespace std;
 
 UTIL::UTIL () {}
 
-UTIL::UTIL (int numDimension, int numGrid)
+UTIL::UTIL (int num_dimension, int num_grid)
 {
-  DIM = numDimension;
-  N = numGrid;
-  N2 = N*N;
-  NDIM = pow(N,DIM);
-  FN = N/2+1;
-  FN2 = N*FN;
-  FNDIM = pow(N,DIM-1)*FN;
+  dim_ = num_dimension;
+  n_ = num_grid;
+  n2_ = n_*n_;
+  ndim_ = pow(n_,dim_);
+  fn_ = n_/2+1;
+  fn2_ = n_*fn_;
+  fndim_ = pow(n_,dim_-1)*fn_;
 }
 
 UTIL::~UTIL () {}
 
-void UTIL::set_grid (int numDimension, int numGrid)
+void UTIL::set_grid (int num_dimension, int num_grid)
 {
-  DIM = numDimension;
-  N = numGrid;
-  N2 = N*N;
-  NDIM = pow(N,DIM);
-  FN = N/2+1;
-  FN2 = N*FN;
-  FNDIM = pow(N,DIM-1)*FN;
-} 
+  dim_ = num_dimension;
+  n_ = num_grid;
+  n2_ = n_*n_;
+  ndim_ = pow(n_,dim_);
+  fn_ = n_/2+1;
+  fn2_ = n_*fn_;
+  fndim_ = pow(n_,dim_-1)*fn_;
+}
 
 int UTIL::CoordId (int index, int d)
 {
@@ -72,33 +72,77 @@ int UTIL::fCoordId (int index, int d)
     }
 }
 
+vector<int> UTIL::fCoordId (int index)
+{
+  vector<int> fcoord;
+  for (int d=0; d<dim_; d++)
+  {
+    fcoord.push_back(fCoordId(index, d));
+  }
+  return fcoord;
+}
+
 int UTIL::VecId (int x, int y)
 {
-  return N*y+x;
+  return n_*y+x;
 }
 
 int UTIL::VecId (int x, int y, int z)
 {
-  return N2*z+N*y+x;
+  return n2_*z+n_*y+x;
 }
 
 int UTIL::VecId (int *x)
 {
-  if (DIM == 2)
+  if (dim_ == 2)
     {
-      return N*x[1]+x[0];
+      return n_*x[1]+x[0];
     }
   else
     {
-      return N2*x[2]+N*x[1]+x[0];
+      return n2_*x[2]+n_*x[1]+x[0];
+    }
+}
+
+int UTIL::fVecId (int x, int y)
+{
+  return fn_*y+x;
+}
+
+int UTIL::fVecId (int x, int y, int z)
+{
+  return fn2_*z+fn_*y+x;
+}
+
+int UTIL::fVecId (int *x)
+{
+  if (dim_ == 2)
+    {
+      return fn_*x[1]+x[0];
+    }
+  else
+    {
+      return fn2_*x[2]+fn_*x[1]+x[0];
+    }
+}
+
+int UTIL::fVecId (vector<int> x)
+{
+  if (dim_ == 2)
+    {
+      return fn_*x[1]+x[0];
+    }
+  else
+    {
+      return fn2_*x[2]+fn_*x[1]+x[0];
     }
 }
 
 int UTIL::distPBC (int x)
 {
-  if (x > N/2)
+  if (x > n_/2)
     {
-      return N-x;
+      return n_-x;
     }
   else
     {
@@ -108,67 +152,67 @@ int UTIL::distPBC (int x)
 
 int UTIL::x(int index)
 {
-  if (DIM == 2)
+  if (dim_ == 2)
     {
-      return index % N;
+      return index % n_;
     }
   else
     {
-      return (index % N2) % N;
+      return (index % n2_) % n_;
     }
 }
 
 int UTIL::y(int index)
 {
-  if (DIM == 2)
+  if (dim_ == 2)
     {
-      return floor(index/N);
+      return floor(index/n_);
     }
   else
     {
-      return floor((index % N2)/N);
+      return floor((index % n2_)/n_);
     }
 }
 
 int UTIL::z(int index)
 {
-  return floor(index/N2);
+  return floor(index/n2_);
 }
 
 int UTIL::fx(int index)
 {
-  if (DIM == 2)
+  if (dim_ == 2)
     {
-      return index % FN;
+      return index % fn_;
     }
   else
     {
-      return (index % FN2) % FN;
+      return (index % fn2_) % fn_;
     }
 }
 
 int UTIL::fy(int index)
 {
-  if (DIM == 2)
+  if (dim_ == 2)
     {
-      return floor(index/FN);
+      return floor(index/fn_);
     }
   else
     {
-      return floor((index % FN2)/FN);
+      return floor((index % fn2_)/fn_);
     }
 }
 
 int UTIL::fz(int index)
 {
-  return floor(index/FN2);
+  return floor(index/fn2_);
 }
 
 int UTIL::i_to_m (int id)
 {
-  if (id > N/2)
+  if (id > n_/2)
     {
-      return id-N;
+      return id-n_;
     }
   else
     {
@@ -178,13 +222,13 @@ int UTIL::i_to_m (int id)
 
 int UTIL::m_to_i (int mode)
 {
-  if (mode >= N/2)
+  if (mode >= n_/2)
     {
-      mode -= N/2;
+      mode -= n_/2;
     }
-  else if (mode <= -N/2)
+  else if (mode <= -n_/2)
     {
-      mode += N/2;
+      mode += n_/2;
     }
 
   if (mode >= 0)
@@ -193,17 +237,17 @@ int UTIL::m_to_i (int mode)
     }
   else
     {
-      return mode+N;
+      return mode+n_;
     }
 }
 
 
 void UTIL::fftw_normalize (fftw_complex *ffield)
 {
-  for (int ii=0; ii<FNDIM; ii++)
+  for (int ii=0; ii<fndim_; ii++)
     {
-      ffield[ii][0] /= NDIM;
-      ffield[ii][1] /= NDIM;
+      ffield[ii][0] /= ndim_;
+      ffield[ii][1] /= ndim_;
     }
 }
 
@@ -218,4 +262,73 @@ double sinc(double x)
     {
       return sin(x)/x;
     }
+}
+
+
+void cscalarprod (fftw_complex a, double b, fftw_complex result)
+{
+  result[0] += b*a[0];
+  result[1] += b*a[1];
+}
+
+
+void csum (fftw_complex a, fftw_complex b, fftw_complex result)
+{
+  result[0] = a[0]+b[0];
+  result[1] = a[1]+b[1];
+}
+
+
+void prod (fftw_complex a, fftw_complex b, fftw_complex result)
+{
+  result[0] = a[0]*b[0] - a[1]*b[1];
+  result[1] = a[0]*b[1] + a[1]*b[0];
+}
+
+double prod3 (fftw_complex a, fftw_complex b, fftw_complex c)
+{
+  fftw_complex buffer;
+  prod(a, b, buffer);
+  return buffer[0]*c[0] - buffer[1]*c[1];
+}
+
+
+bool comparator (const idpair &l, const idpair &r)
+{
+  return l.first < r.first;
+}
+
+
+float ran2(long *idum)
+{
+  int j;
+  long k;
+  static long idum2=123456789;
+  static long iy=0;
+  static long iv[NTAB];
+  float temp;
+  if (*idum <= 0) {
+    if (-(*idum) < 1) *idum=1;
+    else *idum = -(*idum);
+    idum2=(*idum);
+    for (j=NTAB+7;j>=0;j--) {
+      k=(*idum)/IQ1;
+      *idum=IA1*(*idum-k*IQ1)-k*IR1;
+      if (*idum < 0) *idum += IM1;
+      if (j < NTAB) iv[j] = *idum;
+    }
+    iy=iv[0];
+  }
+  k=(*idum)/IQ1;
+  *idum=IA1*(*idum-k*IQ1)-k*IR1;
+  if (*idum < 0) *idum += IM1;
+  k=idum2/IQ2;
+  idum2=IA2*(idum2-k*IQ2)-k*IR2;
+  if (idum2 < 0) idum2 += IM2;
+  j=iy/NDIV;
+  iy=iv[j]-idum2;
+  iv[j] = *idum;
+  if (iy < 1) iy += IMM1;
+  if ((temp=AM*iy) > RNMX) return RNMX;
+  else return temp;
 }
